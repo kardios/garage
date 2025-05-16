@@ -207,15 +207,12 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'google_grounding':
-                        # Construct the Tool object for Google Search
                         tool_for_google_search = Tool()
-                        # Assign an empty dictionary to the google_search field
-                        # This should signal the SDK to enable the default Google Search tool
                         tool_for_google_search.google_search = {}
 
                         gemini_model_instance = model_details['client'].GenerativeModel(
                             model_name=model_details['model_id'],
-                            tools=[tool_for_google_search], # Pass the configured Tool object
+                            tools=[tool_for_google_search], 
                             generation_config=generation_config_gemini,
                             safety_settings=safety_settings_gemini
                         )
@@ -234,13 +231,25 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Grounding Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'openai_websearch':
+                        # Attempt to enable web search tool
                         response = model_details['client'].chat.completions.create(
-                            model=model_details['model_id'],
+                            model=model_details['model_id'], # Should be 'gpt-4.1'
                             messages=[{"role": "user", "content": Customised_Prompt}],
+                            tools=[{"type": "web_search_preview"}], # Added tool
+                            tool_choice="auto", # Let model decide or force with {"type": "web_search_preview"}
                             temperature=0.5
                         )
                         output_text = response.choices[0].message.content
-                        sources_text = "Sources: Information likely integrated from the model's knowledge base and general web awareness. For explicit citations, a dedicated web search tool flow might be required."
+                        # Note: Structured citations from this tool with chat.completions might require
+                        # handling response.choices[0].message.tool_calls if present.
+                        # This simplified version assumes info is in output_text or no structured citations.
+                        if response.choices[0].message.tool_calls:
+                            sources_text = "Sources: Model indicated use of web search. Detailed citation extraction would require further processing of tool calls."
+                            # Log tool calls for debugging if needed:
+                            # st.json([tc.model_dump_json() for tc in response.choices[0].message.tool_calls])
+                        else:
+                            sources_text = "Sources: Web search explicitly requested. Information likely integrated. For itemized citations, a more complex tool handling flow might be needed."
+
 
                     elif model_details['type'] == 'anthropic_websearch':
                         response = model_details['client'].messages.create(
@@ -342,7 +351,6 @@ if st.button("Generate CVs & Compare! :rocket:"):
                             model_name=reviewer_details['model_id'],
                             generation_config=generation_config_gemini_reviewer,
                             safety_settings=safety_settings_gemini
-                            # Note: Reviewer models typically don't need 'tools' unless they also search.
                         )
                         response = reviewer_model_instance.generate_content(final_compare_prompt)
                         reviewer_output_text = response.text
