@@ -68,7 +68,7 @@ base_generation_config_params = {
 }
 base_reviewer_generation_config_params = {
     "candidate_count": 1,
-    "temperature": 0.3,
+    "temperature": 0.3, # This is for Gemini reviewer, OpenAI reviewer will use its default
 }
 
 
@@ -211,7 +211,7 @@ if st.button("Generate CVs & Compare! :rocket:"):
                         response = model_details['client'].models.generate_content( 
                             model=f"models/{model_details['model_id']}", 
                             contents=Customised_Prompt,
-                            config=content_config_obj # Changed from generation_config to config
+                            config=content_config_obj 
                         )
                         output_text = response.text
                         if response.candidates and response.candidates[0].grounding_metadata:
@@ -380,10 +380,11 @@ if st.button("Generate CVs & Compare! :rocket:"):
                     reviewer_output_text = "Error: No comparison generated."
 
                     if reviewer_details['type'] == 'openai_chat':
+                        # For OpenAI 'o3' reviewer, remove temperature or set to 1 if default
                         response = reviewer_details['client'].chat.completions.create(
                             model=reviewer_details['model_id'],
-                            messages=[{"role": "user", "content": final_compare_prompt}],
-                            temperature=0.3
+                            messages=[{"role": "user", "content": final_compare_prompt}]
+                            # Temperature removed to use default, as 0.3 was causing an error
                         )
                         reviewer_output_text = response.choices[0].message.content
 
@@ -395,7 +396,7 @@ if st.button("Generate CVs & Compare! :rocket:"):
                         response = reviewer_details['client'].models.generate_content(
                             model=f"models/{reviewer_details['model_id']}",
                             contents=final_compare_prompt,
-                            config=content_config_obj_reviewer # Changed from generation_config to config
+                            config=content_config_obj_reviewer
                         )
                         reviewer_output_text = response.text
 
