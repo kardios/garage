@@ -6,7 +6,7 @@ import google.generativeai as genai # For Gemini
 from openai import OpenAI
 from anthropic import Anthropic # For Claude
 from google.generativeai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig
-from google.ai.generativelanguage import GoogleSearch as GLMGoogleSearch # Import for specific GoogleSearch proto
+# Removed: from google.ai.generativelanguage import GoogleSearch as GLMGoogleSearch
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- CONFIGURATION ---
@@ -207,10 +207,11 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'google_grounding':
-                        # Construct the Tool object for Google Search correctly
-                        google_search_proto_instance = GLMGoogleSearch() # Instance of the specific proto
-                        tool_for_google_search = Tool() # Create a Tool wrapper instance
-                        tool_for_google_search.google_search = google_search_proto_instance # Set the google_search field
+                        # Construct the Tool object for Google Search
+                        tool_for_google_search = Tool()
+                        # Assign an empty dictionary to the google_search field
+                        # This should signal the SDK to enable the default Google Search tool
+                        tool_for_google_search.google_search = {}
 
                         gemini_model_instance = model_details['client'].GenerativeModel(
                             model_name=model_details['model_id'],
