@@ -116,7 +116,7 @@ with st.expander("Click to read documentation", expanded=True):
     st.write("    -   **Deepseek** (Perplexity - `sonar-reasoning`)")
     st.write("    -   **Gemini 2.5 Flash (Grounding)** (Google - `gemini-2.5-flash-latest`)")
     st.write("    -   **GPT-4.1 (Web Search)** (OpenAI - `gpt-4.1`)")
-    st.write("    -   **Claude 3.7 Sonnet (Web Search)** (Anthropic - `claude-3.7-sonnet-latest`)")
+    st.write("    -   **Claude 3.7 Sonnet (Web Search)** (Anthropic - `claude-3-7-sonnet-20250219`)") # Updated
     st.write("3.  If you select more than one generation model, choose one **reasoning model** to compare the generated CVs:")
     st.write("    -   **OpenAI o3** (OpenAI - Advanced reasoning model. *Ensure 'o3' is a valid model ID for your API key.*)")
     st.write("    -   **Gemini 2.5 Pro (Reasoning)** (Google - Powerful alternative for comparison. *Uses 'gemini-2.5-pro-latest'.*)")
@@ -128,7 +128,7 @@ GENERATION_MODELS_OPTIONS = {
     'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity'},
     'Gemini 2.5 Flash (Grounding)': {'client': client_google, 'model_id': 'gemini-2.5-flash-latest', 'type': 'google_grounding'},
     'GPT-4.1 (Web Search)': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_websearch'},
-    'Claude 3.7 Sonnet (Web Search)': {'client': client_anthropic, 'model_id': 'claude-3.7-sonnet-latest', 'type': 'anthropic_websearch'}
+    'Claude 3.7 Sonnet (Web Search)': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch'} # Updated
 }
 
 REVIEWER_MODELS_OPTIONS = {
@@ -207,11 +207,9 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'google_grounding':
-                        # Updated: Pass an empty dict to enable Google Search tool with default config
-                        google_search_tool = Tool(google_search={})
                         gemini_model_instance = model_details['client'].GenerativeModel(
                             model_name=model_details['model_id'],
-                            tools=[google_search_tool],
+                            tools=[{'google_search': {}}],
                             generation_config=generation_config_gemini,
                             safety_settings=safety_settings_gemini
                         )
@@ -240,7 +238,7 @@ if st.button("Generate CVs & Compare! :rocket:"):
 
                     elif model_details['type'] == 'anthropic_websearch':
                         response = model_details['client'].messages.create(
-                            model=model_details['model_id'],
+                            model=model_details['model_id'], # Now 'claude-3-7-sonnet-20250219'
                             max_tokens=4096,
                             messages=[{"role": "user", "content": Customised_Prompt}],
                             tools=[{"type": "web_search_20250305", "name": "web_search"}]
