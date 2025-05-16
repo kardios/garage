@@ -5,8 +5,8 @@ import telebot
 import google.generativeai as genai # For Gemini
 from openai import OpenAI
 from anthropic import Anthropic # For Claude
-from google.generativeai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig
-# Removed: from google.ai.generativelanguage import GoogleSearch as GLMGoogleSearch
+# Updated import: Added GoogleSearch from google.generativeai.types
+from google.generativeai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig, GoogleSearch
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- CONFIGURATION ---
@@ -208,11 +208,12 @@ if st.button("Generate CVs & Compare! :rocket:"):
 
                     elif model_details['type'] == 'google_grounding':
                         # Correctly construct the Tool object for Google Search
-                        tool_for_google_search = Tool(google_search={})
+                        # Instantiate GoogleSearch type and assign it to the google_search field of Tool
+                        tool_for_google_search = Tool(google_search=GoogleSearch())
 
                         gemini_model_instance = model_details['client'].GenerativeModel(
                             model_name=model_details['model_id'],
-                            tools=[tool_for_google_search], 
+                            tools=[tool_for_google_search],
                             generation_config=generation_config_gemini,
                             safety_settings=safety_settings_gemini
                         )
@@ -231,9 +232,8 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Grounding Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'openai_websearch':
-                        # Reverted to standard chat completion for gpt-4.1 as explicit web_search_preview tool was causing issues
                         response = model_details['client'].chat.completions.create(
-                            model=model_details['model_id'], 
+                            model=model_details['model_id'],
                             messages=[{"role": "user", "content": Customised_Prompt}],
                             temperature=0.5
                         )
