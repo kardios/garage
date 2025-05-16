@@ -114,7 +114,7 @@ with st.expander("Click to read documentation", expanded=True):
     st.write("    -   **Sonar** (Perplexity - `sonar-pro`)")
     st.write("    -   **Deepseek** (Perplexity - `sonar-reasoning`)")
     st.write("    -   **Gemini 2.0 Flash (Grounding)** (Google - `gemini-2.0-flash-001`)")
-    st.write("    -   **GPT-4.1 (Web Search)** (OpenAI - `gpt-4.1`)") # Updated
+    st.write("    -   **GPT-4.1 (Web Search)** (OpenAI - `gpt-4.1`)")
     st.write("    -   **Claude 3.7 Sonnet (Web Search)** (Anthropic - `claude-3-7-sonnet-20250219`)")
     st.write("3.  If you select more than one generation model, choose one **reasoning model** to compare the generated CVs:")
     st.write("    -   **OpenAI o3** (OpenAI - Advanced reasoning model. *Ensure 'o3' is a valid model ID for your API key.*)")
@@ -126,7 +126,7 @@ GENERATION_MODELS_OPTIONS = {
     'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity'},
     'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity'},
     'Gemini 2.0 Flash (Grounding)': {'client': client_google, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_grounding'},
-    'GPT-4.1 (Web Search)': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch'}, # Updated model_id
+    'GPT-4.1 (Web Search)': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch'},
     'Claude 3.7 Sonnet (Web Search)': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch'}
 }
 
@@ -206,7 +206,8 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'google_grounding':
-                        tool_for_google_search = Tool(google_search={})
+                        tool_for_google_search = Tool()
+                        tool_for_google_search.google_search = {}
 
                         gemini_model_instance = model_details['client'].GenerativeModel(
                             model_name=model_details['model_id'],
@@ -230,7 +231,7 @@ if st.button("Generate CVs & Compare! :rocket:"):
 
                     elif model_details['type'] == 'openai_responses_websearch':
                         response = model_details['client'].responses.create(
-                            model=model_details['model_id'], # Now 'gpt-4.1'
+                            model=model_details['model_id'],
                             input=Customised_Prompt,
                             tools=[{"type": "web_search_preview"}]
                         )
@@ -249,10 +250,28 @@ if st.button("Generate CVs & Compare! :rocket:"):
 
 
                     elif model_details['type'] == 'anthropic_websearch':
+                        # Parse prompt for system and user messages for Anthropic
+                        system_prompt_content = ""
+                        user_message_content = Customised_Prompt # Default
+
+                        if "###Instruction###" in Customised_Prompt:
+                            parts = Customised_Prompt.split("###Instruction###", 1)
+                            main_instruction_and_rest = parts[1]
+                            if "###Information###" in main_instruction_and_rest:
+                                instruction_parts = main_instruction_and_rest.split("###Information###", 1)
+                                system_prompt_content = instruction_parts[0].strip()
+                                user_message_content = "###Information###" + instruction_parts[1]
+                            else:
+                                system_prompt_content = main_instruction_and_rest.strip()
+                                user_message_content = "" # Or adjust if needed
+                        
+                        anthropic_messages = [{"role": "user", "content": user_message_content}]
+                        
                         response = model_details['client'].messages.create(
                             model=model_details['model_id'],
+                            system=system_prompt_content if system_prompt_content else None,
+                            messages=anthropic_messages,
                             max_tokens=4096,
-                            messages=[{"role": "user", "content": Customised_Prompt}],
                             tools=[{"type": "web_search_20250305", "name": "web_search"}]
                         )
                         parsed_output_text = ""
@@ -294,7 +313,7 @@ if st.button("Generate CVs & Compare! :rocket:"):
                             st.warning(f"Telegram notification failed for {intern_name}: {bot_e}")
                     st.snow()
 
-            except AttributeError as ae: 
+            except AttributeError as ae:
                 if "object has no attribute 'responses'" in str(ae).lower() and model_details['type'] == 'openai_responses_websearch':
                     st.error(f"An error occurred with {intern_name}: The OpenAI client does not have a '.responses' attribute. This might indicate an issue with the OpenAI library version or the specific client capabilities. Please check your OpenAI library installation and API access for the Responses API. Falling back to standard chat completion for this model.")
                     try:
