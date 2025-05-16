@@ -5,7 +5,8 @@ import telebot
 import google.generativeai as genai # For Gemini
 from openai import OpenAI # Ensure this is imported if not already
 from anthropic import Anthropic # For Claude
-from google.generativeai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig
+# Updated import: Added GoogleSearch as per documentation
+from google.generativeai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig, GoogleSearch
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- CONFIGURATION ---
@@ -206,8 +207,8 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'google_grounding':
-                        tool_for_google_search = Tool()
-                        tool_for_google_search.google_search = {}
+                        # Correctly construct the Tool object for Google Search as per documentation
+                        tool_for_google_search = Tool(google_search=GoogleSearch())
 
                         gemini_model_instance = model_details['client'].GenerativeModel(
                             model_name=model_details['model_id'],
@@ -250,9 +251,8 @@ if st.button("Generate CVs & Compare! :rocket:"):
 
 
                     elif model_details['type'] == 'anthropic_websearch':
-                        # Parse prompt for system and user messages for Anthropic
                         system_prompt_content = ""
-                        user_message_content = Customised_Prompt # Default
+                        user_message_content = Customised_Prompt
 
                         if "###Instruction###" in Customised_Prompt:
                             parts = Customised_Prompt.split("###Instruction###", 1)
@@ -263,10 +263,10 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 user_message_content = "###Information###" + instruction_parts[1]
                             else:
                                 system_prompt_content = main_instruction_and_rest.strip()
-                                user_message_content = "" # Or adjust if needed
-                        
+                                user_message_content = ""
+
                         anthropic_messages = [{"role": "user", "content": user_message_content}]
-                        
+
                         response = model_details['client'].messages.create(
                             model=model_details['model_id'],
                             system=system_prompt_content if system_prompt_content else None,
@@ -336,7 +336,7 @@ if st.button("Generate CVs & Compare! :rocket:"):
                         st.error(f"Fallback chat completion also failed for {intern_name}: {fallback_e}")
                         combined_output_for_copying += f"<answer_{intern_name}>\n\nError generating CV with {intern_name} (fallback failed): {fallback_e}\n\n</answer_{intern_name}>\n\n"
                         generated_cv_data[intern_name] = {'text': f"Error (fallback failed): {fallback_e}", 'sources': "N/A due to error."}
-                else: # Re-raise other AttributeErrors
+                else:
                     st.error(f"An AttributeError occurred with {intern_name}: {ae}")
                     combined_output_for_copying += f"<answer_{intern_name}>\n\nError generating CV with {intern_name}: {ae}\n\n</answer_{intern_name}>\n\n"
                     generated_cv_data[intern_name] = {'text': f"Error: {ae}", 'sources': "N/A due to error."}
