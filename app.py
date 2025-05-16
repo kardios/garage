@@ -207,8 +207,8 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'google_grounding':
-                        tool_for_google_search = Tool()
-                        tool_for_google_search.google_search = {}
+                        # Correctly construct the Tool object for Google Search
+                        tool_for_google_search = Tool(google_search={})
 
                         gemini_model_instance = model_details['client'].GenerativeModel(
                             model_name=model_details['model_id'],
@@ -231,24 +231,14 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Grounding Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'openai_websearch':
-                        # Attempt to enable web search tool
+                        # Reverted to standard chat completion for gpt-4.1 as explicit web_search_preview tool was causing issues
                         response = model_details['client'].chat.completions.create(
-                            model=model_details['model_id'], # Should be 'gpt-4.1'
+                            model=model_details['model_id'], 
                             messages=[{"role": "user", "content": Customised_Prompt}],
-                            tools=[{"type": "web_search_preview"}], # Added tool
-                            tool_choice="auto", # Let model decide or force with {"type": "web_search_preview"}
                             temperature=0.5
                         )
                         output_text = response.choices[0].message.content
-                        # Note: Structured citations from this tool with chat.completions might require
-                        # handling response.choices[0].message.tool_calls if present.
-                        # This simplified version assumes info is in output_text or no structured citations.
-                        if response.choices[0].message.tool_calls:
-                            sources_text = "Sources: Model indicated use of web search. Detailed citation extraction would require further processing of tool calls."
-                            # Log tool calls for debugging if needed:
-                            # st.json([tc.model_dump_json() for tc in response.choices[0].message.tool_calls])
-                        else:
-                            sources_text = "Sources: Web search explicitly requested. Information likely integrated. For itemized citations, a more complex tool handling flow might be needed."
+                        sources_text = "Sources: Information likely integrated from the model's training data. Explicit web search with citations for this model via this API call method is not directly supported in this simplified setup."
 
 
                     elif model_details['type'] == 'anthropic_websearch':
