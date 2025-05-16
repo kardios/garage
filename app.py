@@ -20,6 +20,16 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 
+# --- Initial API Key Guidance ---
+# Check if at least one generation model API key is available
+initial_api_keys_found = any([PERPLEXITY_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY])
+if not initial_api_keys_found:
+    st.info(
+        "Welcome to CV Generator Pro! To get started, please ensure you have set up the necessary API keys "
+        "as environment variables (e.g., OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY, PERPLEXITY_API_KEY). "
+        "All models are currently unavailable until their respective keys are configured."
+    )
+
 # Set up Telegram Bot
 RECIPIENT_USER_ID = os.environ.get('RECIPIENT_USER_ID')
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -37,13 +47,13 @@ client_perplexity = None
 if PERPLEXITY_API_KEY:
     client_perplexity = OpenAI(api_key=PERPLEXITY_API_KEY, base_url="https://api.perplexity.ai")
 else:
-    st.warning("Perplexity API Key not found. Sonar and Deepseek models will be unavailable.")
+    st.warning("Perplexity API Key (PERPLEXITY_API_KEY) not found. Sonar and Deepseek models will be unavailable. Please set the environment variable to use these models.")
 
 client_openai = None
 if OPENAI_API_KEY:
     client_openai = OpenAI()
 else:
-    st.warning("OpenAI API Key not found. GPT models will be unavailable.")
+    st.warning("OpenAI API Key (OPENAI_API_KEY) not found. Optima and Oscar models will be unavailable. Please set the environment variable to use these models.")
 
 client_google_sdk = None # This will hold the genai.Client() instance
 if GOOGLE_API_KEY:
@@ -52,13 +62,13 @@ if GOOGLE_API_KEY:
     except Exception as e:
         st.error(f"Failed to initialize Google Gemini Client: {e}")
 else:
-    st.warning("Google API Key not found. Gemini models will be unavailable.")
+    st.warning("Google API Key (GOOGLE_API_KEY) not found. Gemini models will be unavailable. Please set the environment variable to use these models.")
 
 client_anthropic = None
 if ANTHROPIC_API_KEY:
     client_anthropic = Anthropic(api_key=ANTHROPIC_API_KEY)
 else:
-    st.warning("Anthropic API Key not found. Claude models will be unavailable.")
+    st.warning("Anthropic API Key (ANTHROPIC_API_KEY) not found. Claude models will be unavailable. Please set the environment variable to use these models.")
 
 # Base Generation parameters for Google Gemini
 # These will be used directly in GenerateContentConfig
@@ -106,28 +116,30 @@ with st.expander("Click to read documentation", expanded=True):
     st.write("This tool generates draft CVs using various Large Language Models (LLMs).")
     st.write("1.  Enter the name of the individual for whom you want to generate a CV.")
     st.write("2.  Select up to five **CV generation models** from the list. These models are equipped with web search or grounding capabilities to fetch up-to-date information:")
-    st.write("    -   **Sonar** (Perplexity - `sonar-pro`)")
-    st.write("    -   **Deepseek** (Perplexity - `sonar-reasoning`)")
-    st.write("    -   **Gemini** (Google - `gemini-2.0-flash-001`)") 
-    st.write("    -   **Optima** (OpenAI - `gpt-4.1`)") 
-    st.write("    -   **Claude** (Anthropic - `claude-3-7-sonnet-20250219`)") 
+    st.markdown("""
+        -   **Sonar**: Perplexity model, good for broad research.
+        -   **Deepseek**: Perplexity model, focused on reasoning.
+        -   **Gemini**: Google model with web grounding capabilities (`gemini-2.0-flash-001`).
+        -   **Optima**: OpenAI model with web search capabilities (`gpt-4.1`). Web search is enabled via the Responses API; structured citations may not be as detailed as other models.
+        -   **Claude**: Anthropic model with web search capabilities (`claude-3-7-sonnet-20250219`).
+    """)
     st.write("3.  If you select more than one generation model, choose one or more **reasoning models** to synthesize a reconciled CV and highlight discrepancies:")
-    st.write("    -   **OpenAI o3** (OpenAI - Advanced reasoning model. *Ensure 'o3' is a valid model ID for your API key.*)")
-    st.write("    -   **Gemini 2.5 Pro (Reasoning)** (Google - Powerful alternative for comparison. *Uses 'gemini-2.5-pro-preview-05-06'.*)")
+    st.write("    -   **Oscar** (OpenAI - Advanced reasoning model. *Underlying model: 'o3'. Ensure 'o3' is a valid model ID for your API key.*)") 
+    st.write("    -   **Graham** (Google - Powerful alternative for comparison. *Underlying model: 'gemini-2.5-pro-preview-05-06'.*)") 
     st.write("4.  Click 'Generate CVs & Synthesize!' to start the process.") 
     st.write("5.  Review the generated CVs and the synthesized CV(s).")
 
 GENERATION_MODELS_OPTIONS = {
-    'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity'},
-    'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity'},
-    'Gemini': {'client': client_google_sdk, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_client_grounding'}, 
-    'Optima': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch'}, 
-    'Claude': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch'} 
+    'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity', 'description': "Perplexity model, good for broad research."},
+    'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity', 'description': "Perplexity model, focused on reasoning."},
+    'Gemini': {'client': client_google_sdk, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_client_grounding', 'description': "Google model with web grounding capabilities."},
+    'Optima': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch', 'description': "OpenAI model with web search capabilities (via Responses API)."},
+    'Claude': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch', 'description': "Anthropic model with web search capabilities."}
 }
 
-REVIEWER_MODELS_OPTIONS = {
-    'OpenAI o3': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'},
-    'Gemini 2.5 Pro (Reasoning)': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-preview-05-06', 'type': 'google_client'} 
+REVIEWER_MODELS_OPTIONS = { 
+    'Oscar': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'},
+    'Graham': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-preview-05-06', 'type': 'google_client'} 
 }
 
 # Filter out unavailable models based on API key presence
@@ -139,28 +151,43 @@ if not available_generation_models:
 if not available_reviewer_models:
     st.error("No reviewer models are available. Please check your API key configurations in environment variables.")
 
+# Displaying model descriptions before multiselect as direct captions are not supported in multiselect options
+st.subheader("Select CV Generation Models (Interns)")
+for model_name in GENERATION_MODELS_OPTIONS:
+    if model_name in available_generation_models:
+        st.caption(f"**{model_name}**: {GENERATION_MODELS_OPTIONS[model_name]['description']}")
+    else:
+        st.caption(f"**{model_name}**: *Unavailable (API key missing)*")
+
+
 Intern_Select = st.multiselect(
     "Which **CV generation models** would you like to deploy? (Select up to 5)",
     options=available_generation_models,
     default=available_generation_models, 
-    max_selections=5
+    max_selections=5,
+    label_visibility="collapsed" # Hides the main label as we have a subheader now
 )
 
-Reviewer_Select = None # Initialize
-if available_reviewer_models:
+Reviewer_Select = None
+if len(Intern_Select) > 1 and available_reviewer_models:
+    st.subheader("Select Reasoning Models for Synthesis (Reviewers)")
     default_reviewers = []
-    if 'Gemini 2.5 Pro (Reasoning)' in available_reviewer_models:
-        default_reviewers.append('Gemini 2.5 Pro (Reasoning)')
-    elif 'OpenAI o3' in available_reviewer_models: # Fallback if Gemini Pro isn't available
-        default_reviewers.append('OpenAI o3')
-    elif available_reviewer_models: # Fallback to the first available if preferred ones aren't
+    if 'Graham' in available_reviewer_models: 
+        default_reviewers.append('Graham')
+    elif 'Oscar' in available_reviewer_models: 
+         default_reviewers.append('Oscar')
+    elif available_reviewer_models: 
         default_reviewers.append(available_reviewer_models[0])
 
-    Reviewer_Select = st.multiselect( # Changed to multiselect
+    Reviewer_Select = st.multiselect( 
         "Which **reasoning models** would you like to deploy for synthesis? (Select one or both if available)", 
         options=available_reviewer_models,
-        default=default_reviewers
+        default=default_reviewers,
+        label_visibility="collapsed"
     )
+elif len(Intern_Select) <=1 and Intern_Select : # Only show info if at least one intern is selected
+     st.info("Select more than one CV generation model to enable synthesis by a reviewer.")
+
 
 input_text = st.text_input("Enter the full name of the individual for the CV (e.g., 'Dr. Jane Doe, CEO of Tech Innovations Inc.')")
 
@@ -171,11 +198,19 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
         st.error("Please enter the name of the individual.")
     elif not Intern_Select:
         st.error("Please select at least one CV generation model.")
-    elif len(Intern_Select) > 1 and not Reviewer_Select: # Check if Reviewer_Select is empty
+    elif len(Intern_Select) > 1 and not Reviewer_Select: 
         st.error("Please select at least one reviewer model when synthesizing multiple CVs.")
     else:
         key_phrase = input_text
         st.divider()
+        
+        # Overall progress bar
+        total_steps = len(Intern_Select) + (len(Reviewer_Select) if len(Intern_Select) > 1 and Reviewer_Select else 0)
+        progress_bar = None
+        if total_steps > 0:
+            progress_bar = st.progress(0)
+        current_step = 0
+
         combined_output_for_copying = ""
         generated_cv_data = {}
 
@@ -183,15 +218,18 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
             model_details = GENERATION_MODELS_OPTIONS[intern_name]
             if not model_details['client']:
                 st.warning(f"{intern_name} is unavailable (client not configured). Skipping.")
+                if progress_bar: # Increment step even if skipped for progress bar accuracy
+                    current_step += 1
+                    progress_bar.progress(current_step / total_steps)
                 continue
 
             st.subheader(f"Generating CV with: {intern_name}")
             output_text = "Error: No output generated."
-            sources_text = "No specific sources provided by the model for this output."
+            sources_text = "Sources: Not applicable or not provided by the model for this output." # Default neutral message
             start_time = time.time()
 
             try:
-                with st.spinner(f"{intern_name} is drafting the CV... This may take a moment."):
+                with st.spinner(f"Asking {intern_name} to draft the CV... This may take a moment."): # Dynamic spinner text
                     if model_details['type'] == 'perplexity':
                         response = model_details['client'].chat.completions.create(
                             model=model_details['model_id'],
@@ -292,8 +330,9 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                            sources_text = "Cited Sources:\n" + "\n".join(list(set(sources_list)))
 
                     end_time = time.time()
-
-                    with st.expander(f"**{intern_name}**'s CV for **{key_phrase}**", expanded=True):
+                    
+                    st.markdown(f"### Draft CV from {intern_name}") # More distinct header
+                    with st.expander(f"View/Copy CV from **{intern_name}** for **{key_phrase}**", expanded=True):
                         st.markdown(output_text)
                         st.markdown("---")
                         st.markdown(sources_text)
@@ -313,6 +352,14 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                             st.warning(f"Telegram notification failed for {intern_name}: {bot_e}")
                     st.snow()
 
+            except openai.APIStatusError as e: # Specific OpenAI error
+                st.error(f"OpenAI API Error with {intern_name}: {e.status_code} - {e.message}")
+                if e.status_code == 401:
+                     st.error("Please check your OpenAI API key and organization if applicable.")
+                elif e.status_code == 429:
+                    st.error("OpenAI rate limit exceeded. Please try again later or check your usage limits.")
+                combined_output_for_copying += f"<answer_{intern_name}>\n\nError generating CV with {intern_name}: {e}\n\n</answer_{intern_name}>\n\n"
+                generated_cv_data[intern_name] = {'text': f"Error: {e}", 'sources': "N/A due to error."}
             except AttributeError as ae:
                 if "object has no attribute 'responses'" in str(ae).lower() and model_details['type'] == 'openai_responses_websearch':
                     st.error(f"An error occurred with {intern_name}: The OpenAI client does not have a '.responses' attribute. This might indicate an issue with the OpenAI library version or the specific client capabilities. Please check your OpenAI library installation and API access for the Responses API. Falling back to standard chat completion for this model.")
@@ -324,7 +371,8 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                         )
                         output_text = response.choices[0].message.content
                         sources_text = "Sources: (Fallback to standard chat) Information likely integrated from training data."
-                        with st.expander(f"**{intern_name}**'s CV for **{key_phrase}** (Fallback)", expanded=True):
+                        st.markdown(f"### Draft CV from {intern_name} (Fallback to Chat)")
+                        with st.expander(f"View/Copy CV from **{intern_name}** for **{key_phrase}** (Fallback)", expanded=True):
                             st.markdown(output_text)
                             st.markdown("---")
                             st.markdown(sources_text)
@@ -342,24 +390,30 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                     generated_cv_data[intern_name] = {'text': f"Error: {ae}", 'sources': "N/A due to error."}
 
 
-            except Exception as e:
+            except Exception as e: # General errors
                 st.error(f"An error occurred with {intern_name}: {e}")
                 combined_output_for_copying += f"<answer_{intern_name}>\n\nError generating CV with {intern_name}: {e}\n\n</answer_{intern_name}>\n\n"
                 generated_cv_data[intern_name] = {'text': f"Error: {e}", 'sources': "N/A due to error."}
+            
+            if progress_bar:
+                current_step += 1
+                progress_bar.progress(current_step / total_steps)
 
 
         if combined_output_for_copying:
             st.divider()
-            st.subheader("All Generated CVs (for copying)")
+            st.subheader("All Generated CV Drafts (for copying)") # More distinct header
             st.write("*Click* :clipboard: *to copy all generated CVs and their sources to clipboard*")
             st_copy_to_clipboard(combined_output_for_copying)
             st.divider()
 
         successfully_generated_cvs = {k: v for k, v in generated_cv_data.items() if not v['text'].startswith("Error:")}
 
-        if len(successfully_generated_cvs) > 1 and Reviewer_Select: # Check Reviewer_Select
-            for reviewer_name_selected in Reviewer_Select: # Loop through selected reviewers
-                st.subheader(f"Synthesized CV by {reviewer_name_selected}") 
+        if len(successfully_generated_cvs) > 1 and Reviewer_Select: 
+            st.markdown("---") # Divider before synthesis section
+            st.header("Synthesized CV(s)") # More distinct header
+            for reviewer_name_selected in Reviewer_Select: 
+                st.subheader(f"Synthesized by {reviewer_name_selected}") 
                 reviewer_details = REVIEWER_MODELS_OPTIONS[reviewer_name_selected]
 
                 synthesis_prompt_parts = [
@@ -400,7 +454,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                 final_synthesis_prompt = "".join(synthesis_prompt_parts)
 
                 try:
-                    with st.spinner(f"{reviewer_name_selected} is synthesizing the CV... This might take some time."):
+                    with st.spinner(f"{reviewer_name_selected} is synthesizing the CV... This might take some time."): # Dynamic spinner
                         start_time = time.time()
                         synthesized_cv_text = "Error: No synthesized CV generated."
 
@@ -439,8 +493,19 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                                  st.warning(f"Telegram notification failed for {reviewer_name_selected}: {bot_e}")
                         st.balloons()
 
-                except Exception as e:
+                except openai.APIStatusError as e: # Specific OpenAI error for reviewer
+                    st.error(f"OpenAI API Error with {reviewer_name_selected}: {e.status_code} - {e.message}")
+                    if e.status_code == 401:
+                        st.error("Please check your OpenAI API key and organization if applicable.")
+                    elif e.status_code == 429:
+                        st.error("OpenAI rate limit exceeded. Please try again later or check your usage limits.")
+                except Exception as e: # General errors for reviewer
                     st.error(f"An error occurred with {reviewer_name_selected} during synthesis: {e}")
+                
+                if progress_bar:
+                    current_step += 1
+                    progress_bar.progress(current_step / total_steps)
+
 
         elif len(successfully_generated_cvs) <= 1 and combined_output_for_copying:
             st.info("One or fewer CVs were successfully generated, so no synthesis will be performed.")
