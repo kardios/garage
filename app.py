@@ -114,7 +114,7 @@ with st.expander("Click to read documentation", expanded=True):
     st.write("    -   **Sonar** (Perplexity - `sonar-pro`)")
     st.write("    -   **Deepseek** (Perplexity - `sonar-reasoning`)")
     st.write("    -   **Gemini 2.0 Flash (Grounding)** (Google - `gemini-2.0-flash-001`)")
-    st.write("    -   **GPT-4o (Web Search)** (OpenAI - `gpt-4o`)") # Updated
+    st.write("    -   **GPT-4.1 (Web Search)** (OpenAI - `gpt-4.1`)") # Updated
     st.write("    -   **Claude 3.7 Sonnet (Web Search)** (Anthropic - `claude-3-7-sonnet-20250219`)")
     st.write("3.  If you select more than one generation model, choose one **reasoning model** to compare the generated CVs:")
     st.write("    -   **OpenAI o3** (OpenAI - Advanced reasoning model. *Ensure 'o3' is a valid model ID for your API key.*)")
@@ -126,12 +126,12 @@ GENERATION_MODELS_OPTIONS = {
     'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity'},
     'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity'},
     'Gemini 2.0 Flash (Grounding)': {'client': client_google, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_grounding'},
-    'GPT-4o (Web Search)': {'client': client_openai, 'model_id': 'gpt-4o', 'type': 'openai_responses_websearch'}, # Updated type and model_id
+    'GPT-4.1 (Web Search)': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch'}, # Updated model_id
     'Claude 3.7 Sonnet (Web Search)': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch'}
 }
 
 REVIEWER_MODELS_OPTIONS = {
-    'OpenAI o3': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'}, # Specify chat for reviewer if it doesn't use responses API
+    'OpenAI o3': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'},
     'Gemini 2.5 Pro (Reasoning)': {'client': client_google, 'model_id': 'gemini-2.5-pro-latest', 'type': 'google'}
 }
 
@@ -228,19 +228,14 @@ if st.button("Generate CVs & Compare! :rocket:"):
                             if sources_list:
                                 sources_text = "Grounding Sources:\n" + "\n".join(list(set(sources_list)))
 
-                    elif model_details['type'] == 'openai_responses_websearch': # Changed from 'openai_websearch'
-                        # Using client.responses.create for gpt-4o with web_search_preview
+                    elif model_details['type'] == 'openai_responses_websearch':
                         response = model_details['client'].responses.create(
-                            model=model_details['model_id'], # Should be 'gpt-4o'
-                            input=Customised_Prompt, # Use 'input' instead of 'messages'
+                            model=model_details['model_id'], # Now 'gpt-4.1'
+                            input=Customised_Prompt,
                             tools=[{"type": "web_search_preview"}]
-                            # Optional: "search_context_size": "medium" can be added inside the tool dict
                         )
-                        output_text = response.output_text # Access output_text directly
+                        output_text = response.output_text
 
-                        # Basic check for web search usage indication (more detailed parsing would be complex)
-                        # The actual citations are in response.output which is a list of objects.
-                        # For simplicity, we are not parsing the full structured output here.
                         found_search_call = False
                         if hasattr(response, 'output') and response.output:
                             for item in response.output:
@@ -299,10 +294,9 @@ if st.button("Generate CVs & Compare! :rocket:"):
                             st.warning(f"Telegram notification failed for {intern_name}: {bot_e}")
                     st.snow()
 
-            except AttributeError as ae: # Catch AttributeError specifically if .responses is not found
-                if "object has no attribute 'responses'" in str(ae).lower():
+            except AttributeError as ae: 
+                if "object has no attribute 'responses'" in str(ae).lower() and model_details['type'] == 'openai_responses_websearch':
                     st.error(f"An error occurred with {intern_name}: The OpenAI client does not have a '.responses' attribute. This might indicate an issue with the OpenAI library version or the specific client capabilities. Please check your OpenAI library installation and API access for the Responses API. Falling back to standard chat completion for this model.")
-                    # Fallback to chat.completions if .responses.create fails
                     try:
                         response = model_details['client'].chat.completions.create(
                             model=model_details['model_id'],
@@ -311,7 +305,6 @@ if st.button("Generate CVs & Compare! :rocket:"):
                         )
                         output_text = response.choices[0].message.content
                         sources_text = "Sources: (Fallback to standard chat) Information likely integrated from training data."
-                        # Re-display the output after fallback
                         with st.expander(f"**{intern_name}**'s CV for **{key_phrase}** (Fallback)", expanded=True):
                             st.markdown(output_text)
                             st.markdown("---")
@@ -324,6 +317,11 @@ if st.button("Generate CVs & Compare! :rocket:"):
                         st.error(f"Fallback chat completion also failed for {intern_name}: {fallback_e}")
                         combined_output_for_copying += f"<answer_{intern_name}>\n\nError generating CV with {intern_name} (fallback failed): {fallback_e}\n\n</answer_{intern_name}>\n\n"
                         generated_cv_data[intern_name] = {'text': f"Error (fallback failed): {fallback_e}", 'sources': "N/A due to error."}
+                else: # Re-raise other AttributeErrors
+                    st.error(f"An AttributeError occurred with {intern_name}: {ae}")
+                    combined_output_for_copying += f"<answer_{intern_name}>\n\nError generating CV with {intern_name}: {ae}\n\n</answer_{intern_name}>\n\n"
+                    generated_cv_data[intern_name] = {'text': f"Error: {ae}", 'sources': "N/A due to error."}
+
 
             except Exception as e:
                 st.error(f"An error occurred with {intern_name}: {e}")
@@ -366,9 +364,7 @@ if st.button("Generate CVs & Compare! :rocket:"):
                     start_time = time.time()
                     reviewer_output_text = "Error: No comparison generated."
 
-                    # For reviewer models, we'll stick to chat.completions or equivalent standard methods
-                    # as they are not primarily for web search but for reasoning over provided text.
-                    if reviewer_details['type'] == 'openai_chat': # Ensure reviewer type is distinct if needed
+                    if reviewer_details['type'] == 'openai_chat':
                         response = reviewer_details['client'].chat.completions.create(
                             model=reviewer_details['model_id'],
                             messages=[{"role": "user", "content": final_compare_prompt}],
