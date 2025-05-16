@@ -111,11 +111,11 @@ with st.expander("Click to read documentation", expanded=True):
     st.write("    -   **Gemini** (Google - `gemini-2.0-flash-001`)") 
     st.write("    -   **Optima** (OpenAI - `gpt-4.1`)") 
     st.write("    -   **Claude** (Anthropic - `claude-3-7-sonnet-20250219`)") 
-    st.write("3.  If you select more than one generation model, choose one **reasoning model** to synthesize a reconciled CV and highlight discrepancies:")
+    st.write("3.  If you select more than one generation model, choose one or more **reasoning models** to synthesize a reconciled CV and highlight discrepancies:")
     st.write("    -   **OpenAI o3** (OpenAI - Advanced reasoning model. *Ensure 'o3' is a valid model ID for your API key.*)")
     st.write("    -   **Gemini 2.5 Pro (Reasoning)** (Google - Powerful alternative for comparison. *Uses 'gemini-2.5-pro-preview-05-06'.*)")
-    st.write("4.  Click 'Generate CVs & Synthesize!' to start the process.") # Button text updated
-    st.write("5.  Review the generated CVs and the synthesized CV.")
+    st.write("4.  Click 'Generate CVs & Synthesize!' to start the process.") 
+    st.write("5.  Review the generated CVs and the synthesized CV(s).")
 
 GENERATION_MODELS_OPTIONS = {
     'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity'},
@@ -146,31 +146,33 @@ Intern_Select = st.multiselect(
     max_selections=5
 )
 
-Reviewer_Name = None
+Reviewer_Select = None # Initialize
 if available_reviewer_models:
-    default_reviewer_index = 0 
-    if 'Gemini 2.5 Pro (Reasoning)' in available_reviewer_models: 
-        default_reviewer_index = available_reviewer_models.index('Gemini 2.5 Pro (Reasoning)')
-    elif 'OpenAI o3' in available_reviewer_models: 
-         default_reviewer_index = available_reviewer_models.index('OpenAI o3')
+    default_reviewers = []
+    if 'Gemini 2.5 Pro (Reasoning)' in available_reviewer_models:
+        default_reviewers.append('Gemini 2.5 Pro (Reasoning)')
+    elif 'OpenAI o3' in available_reviewer_models: # Fallback if Gemini Pro isn't available
+        default_reviewers.append('OpenAI o3')
+    elif available_reviewer_models: # Fallback to the first available if preferred ones aren't
+        default_reviewers.append(available_reviewer_models[0])
 
-    Reviewer_Name = st.selectbox(
-        "Which **reasoning model** would you like to deploy for synthesis? (Used if >1 CV generated)", # Text updated
+    Reviewer_Select = st.multiselect( # Changed to multiselect
+        "Which **reasoning models** would you like to deploy for synthesis? (Select one or both if available)", 
         options=available_reviewer_models,
-        index=default_reviewer_index
+        default=default_reviewers
     )
 
 input_text = st.text_input("Enter the full name of the individual for the CV (e.g., 'Dr. Jane Doe, CEO of Tech Innovations Inc.')")
 
-Customised_Prompt = generate_cv_prompt(input_text) # This is the prompt for individual CV generation
+Customised_Prompt = generate_cv_prompt(input_text) 
 
-if st.button("Generate CVs & Synthesize! :rocket:"): # Button text updated
+if st.button("Generate CVs & Synthesize! :rocket:"): 
     if not input_text.strip():
         st.error("Please enter the name of the individual.")
     elif not Intern_Select:
         st.error("Please select at least one CV generation model.")
-    elif len(Intern_Select) > 1 and not Reviewer_Name:
-        st.error("Please select a reviewer model when synthesizing multiple CVs.")
+    elif len(Intern_Select) > 1 and not Reviewer_Select: # Check if Reviewer_Select is empty
+        st.error("Please select at least one reviewer model when synthesizing multiple CVs.")
     else:
         key_phrase = input_text
         st.divider()
@@ -355,90 +357,90 @@ if st.button("Generate CVs & Synthesize! :rocket:"): # Button text updated
 
         successfully_generated_cvs = {k: v for k, v in generated_cv_data.items() if not v['text'].startswith("Error:")}
 
-        if len(successfully_generated_cvs) > 1 and Reviewer_Name:
-            st.subheader(f"Synthesized CV by {Reviewer_Name}") # Updated subheader
-            reviewer_details = REVIEWER_MODELS_OPTIONS[Reviewer_Name]
+        if len(successfully_generated_cvs) > 1 and Reviewer_Select: # Check Reviewer_Select
+            for reviewer_name_selected in Reviewer_Select: # Loop through selected reviewers
+                st.subheader(f"Synthesized CV by {reviewer_name_selected}") 
+                reviewer_details = REVIEWER_MODELS_OPTIONS[reviewer_name_selected]
 
-            # New prompt for synthesizing and noting discrepancies
-            synthesis_prompt_parts = [
-                f"You are an expert CV editor. Your task is to synthesize a single, comprehensive, and accurate CV for **{key_phrase}** based on the multiple draft CVs provided below.\n\n"
-                "Your goal is to produce a 'Refreshed CV' that is the best possible version, combining all valid information and resolving discrepancies where possible.\n\n"
-                "Follow this structure for the Refreshed CV (ensure all 12 sections are present if information is available):\n"
-                "1.  **NAME**: Full name of the individual.\n"
-                "2.  **GOVERNMENT POSITION**: Current or most recent government position held. (If applicable, otherwise most recent significant professional role).\n"
-                "3.  **COUNTRY**: The official name of the country they serve/worked in or are primarily associated with.\n"
-                "4.  **BORN**: Date of birth.\n"
-                "5.  **AGE**: Current age. (Calculated based on May 2025 and date of birth).\n"
-                "6.  **MARITAL STATUS**: Information on marital status, including spouse and children if applicable.\n"
-                "7.  **EDUCATION**: Chronological list of educational achievements (PERIOD, INSTITUTION, DEGREE).\n"
-                "8.  **CAREER**: Detailed account of the individual's career (YEAR and POSITION).\n"
-                "9.  **OTHER APPOINTMENTS**: List of other significant appointments.\n"
-                "10. **AWARDS and DECORATIONS**: List of awards and decorations.\n"
-                "11. **LANGUAGES**: Languages spoken.\n"
-                "12. **REMARKS**: Any additional noteworthy information.\n\n"
-                "Instructions for Reconciling and Synthesizing:\n"
-                "-   Combine information from all provided CVs to make the Refreshed CV as complete as possible.\n"
-                "-   If different CVs provide different information for the same field (e.g., different dates for a job, different university names for the same degree period), try to determine the most likely correct information. If multiple sources agree on one version, prefer that.\n"
-                "-   **Crucially, if you encounter conflicting information that cannot be definitively resolved, or if you make a choice between conflicting pieces of information, you MUST indicate this in the Refreshed CV.**\n"
-                "    -   For example: \"*2018-2022: Chief Technology Officer, Innovate Corp. (Note: Discrepancy in end year; Sonar reported 2022, Deepseek reported 2023)*\"\n"
-                "    -   Or: \"*Education: MSc in Advanced Computing (Source: Gemini) / Master of Science in Computer Engineering (Source: Optima) from Tech University, 2015-2017.*\"\n"
-                "    -   Clearly state the source of conflicting information (e.g., 'Sonar stated X, while Claude stated Y').\n"
-                "-   Ensure dates, positions, and achievements are accurately represented based on the consensus or noted discrepancies.\n"
-                "-   If one CV provides more detail for a specific role or achievement, incorporate that richer detail.\n"
-                "-   Omit any redundant information if multiple CVs state the exact same fact.\n"
-                "-   The final output should be ONLY the complete 'Refreshed CV' with inline notes for discrepancies. Do not add any other commentary before or after the CV.\n\n"
-                f"The draft CVs were generated by the following models: {', '.join(successfully_generated_cvs.keys())}.\n"
-                "The CVs are contained in the tags below. When noting a discrepancy, refer to the model by its name (e.g., **Sonar**, **Gemini**).\n\n"
-                "Here are the draft CVs:\n\n"
-            ]
-            
-            for name, data in successfully_generated_cvs.items():
-                synthesis_prompt_parts.append(f"<answer_{name}>\n(CV from **{name}**)\n\n--- CV Start ---\n{data['text']}\n--- CV End ---\n\n--- Sources listed by {name} ---\n{data['sources']}\n--- Sources End ---\n\n</answer_{name}>\n\n")
-            
-            final_synthesis_prompt = "".join(synthesis_prompt_parts)
+                synthesis_prompt_parts = [
+                    f"You are an expert CV editor. Your task is to synthesize a single, comprehensive, and accurate CV for **{key_phrase}** based on the multiple draft CVs provided below.\n\n"
+                    "Your goal is to produce a 'Refreshed CV' that is the best possible version, combining all valid information and resolving discrepancies where possible.\n\n"
+                    "Follow this structure for the Refreshed CV (ensure all 12 sections are present if information is available):\n"
+                    "1.  **NAME**: Full name of the individual.\n"
+                    "2.  **GOVERNMENT POSITION**: Current or most recent government position held. (If applicable, otherwise most recent significant professional role).\n"
+                    "3.  **COUNTRY**: The official name of the country they serve/worked in or are primarily associated with.\n"
+                    "4.  **BORN**: Date of birth.\n"
+                    "5.  **AGE**: Current age. (Calculated based on May 2025 and date of birth).\n"
+                    "6.  **MARITAL STATUS**: Information on marital status, including spouse and children if applicable.\n"
+                    "7.  **EDUCATION**: Chronological list of educational achievements (PERIOD, INSTITUTION, DEGREE).\n"
+                    "8.  **CAREER**: Detailed account of the individual's career (YEAR and POSITION).\n"
+                    "9.  **OTHER APPOINTMENTS**: List of other significant appointments.\n"
+                    "10. **AWARDS and DECORATIONS**: List of awards and decorations.\n"
+                    "11. **LANGUAGES**: Languages spoken.\n"
+                    "12. **REMARKS**: Any additional noteworthy information.\n\n"
+                    "Instructions for Reconciling and Synthesizing:\n"
+                    "-   Combine information from all provided CVs to make the Refreshed CV as complete as possible.\n"
+                    "-   If different CVs provide different information for the same field (e.g., different dates for a job, different university names for the same degree period), try to determine the most likely correct information. If multiple sources agree on one version, prefer that.\n"
+                    "-   **Crucially, if you encounter conflicting information that cannot be definitively resolved, or if you make a choice between conflicting pieces of information, you MUST indicate this in the Refreshed CV.**\n"
+                    "    -   For example: \"*2018-2022: Chief Technology Officer, Innovate Corp. (Note: Discrepancy in end year; Sonar reported 2022, Deepseek reported 2023)*\"\n"
+                    "    -   Or: \"*Education: MSc in Advanced Computing (Source: Gemini) / Master of Science in Computer Engineering (Source: Optima) from Tech University, 2015-2017.*\"\n"
+                    "    -   Clearly state the source of conflicting information (e.g., 'Sonar stated X, while Claude stated Y').\n"
+                    "-   Ensure dates, positions, and achievements are accurately represented based on the consensus or noted discrepancies.\n"
+                    "-   If one CV provides more detail for a specific role or achievement, incorporate that richer detail.\n"
+                    "-   Omit any redundant information if multiple CVs state the exact same fact.\n"
+                    "-   The final output should be ONLY the complete 'Refreshed CV' with inline notes for discrepancies. Do not add any other commentary before or after the CV.\n\n"
+                    f"The draft CVs were generated by the following models: {', '.join(successfully_generated_cvs.keys())}.\n"
+                    "The CVs are contained in the tags below. When noting a discrepancy, refer to the model by its name (e.g., **Sonar**, **Gemini**).\n\n"
+                    "Here are the draft CVs:\n\n"
+                ]
+                
+                for name, data in successfully_generated_cvs.items():
+                    synthesis_prompt_parts.append(f"<answer_{name}>\n(CV from **{name}**)\n\n--- CV Start ---\n{data['text']}\n--- CV End ---\n\n--- Sources listed by {name} ---\n{data['sources']}\n--- Sources End ---\n\n</answer_{name}>\n\n")
+                
+                final_synthesis_prompt = "".join(synthesis_prompt_parts)
 
-            try:
-                with st.spinner(f"{Reviewer_Name} is synthesizing the CV... This might take some time."):
-                    start_time = time.time()
-                    synthesized_cv_text = "Error: No synthesized CV generated."
+                try:
+                    with st.spinner(f"{reviewer_name_selected} is synthesizing the CV... This might take some time."):
+                        start_time = time.time()
+                        synthesized_cv_text = "Error: No synthesized CV generated."
 
-                    if reviewer_details['type'] == 'openai_chat':
-                        response = reviewer_details['client'].chat.completions.create(
-                            model=reviewer_details['model_id'],
-                            messages=[{"role": "user", "content": final_synthesis_prompt}]
-                        )
-                        synthesized_cv_text = response.choices[0].message.content
+                        if reviewer_details['type'] == 'openai_chat':
+                            response = reviewer_details['client'].chat.completions.create(
+                                model=reviewer_details['model_id'],
+                                messages=[{"role": "user", "content": final_synthesis_prompt}]
+                            )
+                            synthesized_cv_text = response.choices[0].message.content
 
-                    elif reviewer_details['type'] == 'google_client':
-                        content_config_obj_reviewer = GenerateContentConfig(
-                            candidate_count=base_reviewer_generation_config_params["candidate_count"],
-                            temperature=base_reviewer_generation_config_params["temperature"]
-                        )
-                        response = reviewer_details['client'].models.generate_content(
-                            model=f"models/{reviewer_details['model_id']}",
-                            contents=final_synthesis_prompt,
-                            config=content_config_obj_reviewer
-                        )
-                        synthesized_cv_text = response.text
+                        elif reviewer_details['type'] == 'google_client':
+                            content_config_obj_reviewer = GenerateContentConfig(
+                                candidate_count=base_reviewer_generation_config_params["candidate_count"],
+                                temperature=base_reviewer_generation_config_params["temperature"]
+                            )
+                            response = reviewer_details['client'].models.generate_content(
+                                model=f"models/{reviewer_details['model_id']}",
+                                contents=final_synthesis_prompt,
+                                config=content_config_obj_reviewer
+                            )
+                            synthesized_cv_text = response.text
 
-                    end_time = time.time()
+                        end_time = time.time()
 
-                    with st.expander(f"**{Reviewer_Name}**'s Synthesized CV for **{key_phrase}**", expanded=True):
-                        st.markdown(synthesized_cv_text)
-                        st.markdown("---")
-                        st.write(f"*Time to synthesize: {round(end_time - start_time, 2)} seconds*")
-                        st.write("*Click* :clipboard: *to copy synthesized CV to clipboard*")
-                        st_copy_to_clipboard(synthesized_cv_text)
-                    
-                    if bot:
-                        try:
-                            bot.send_message(chat_id=RECIPIENT_USER_ID, text=f"CV Generator Pro:\n{Reviewer_Name} finished synthesizing CV for {key_phrase}")
-                        except Exception as bot_e:
-                             st.warning(f"Telegram notification failed for {Reviewer_Name}: {bot_e}")
-                    st.balloons()
+                        with st.expander(f"**{reviewer_name_selected}**'s Synthesized CV for **{key_phrase}**", expanded=True):
+                            st.markdown(synthesized_cv_text)
+                            st.markdown("---")
+                            st.write(f"*Time to synthesize: {round(end_time - start_time, 2)} seconds*")
+                            st.write("*Click* :clipboard: *to copy synthesized CV to clipboard*")
+                            st_copy_to_clipboard(synthesized_cv_text)
+                        
+                        if bot:
+                            try:
+                                bot.send_message(chat_id=RECIPIENT_USER_ID, text=f"CV Generator Pro:\n{reviewer_name_selected} finished synthesizing CV for {key_phrase}")
+                            except Exception as bot_e:
+                                 st.warning(f"Telegram notification failed for {reviewer_name_selected}: {bot_e}")
+                        st.balloons()
 
-            except Exception as e:
-                st.error(f"An error occurred with {Reviewer_Name} during synthesis: {e}")
+                except Exception as e:
+                    st.error(f"An error occurred with {reviewer_name_selected} during synthesis: {e}")
 
         elif len(successfully_generated_cvs) <= 1 and combined_output_for_copying:
             st.info("One or fewer CVs were successfully generated, so no synthesis will be performed.")
