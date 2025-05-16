@@ -203,17 +203,15 @@ if st.button("Generate CVs & Compare! :rocket:"):
                     elif model_details['type'] == 'google_client_grounding':
                         google_search_tool_instance = Tool(google_search=GoogleSearch())
                         
-                        # Create GenerateContentConfig with parameters directly
                         content_config_obj = GenerateContentConfig(
                             tools=[google_search_tool_instance],
                             candidate_count=base_generation_config_params["candidate_count"],
                             temperature=base_generation_config_params["temperature"]
-                            # Safety settings removed as per user request
                         )
                         response = model_details['client'].models.generate_content( 
                             model=f"models/{model_details['model_id']}", 
                             contents=Customised_Prompt,
-                            generation_config=content_config_obj 
+                            config=content_config_obj # Changed from generation_config to config
                         )
                         output_text = response.text
                         if response.candidates and response.candidates[0].grounding_metadata:
@@ -390,17 +388,14 @@ if st.button("Generate CVs & Compare! :rocket:"):
                         reviewer_output_text = response.choices[0].message.content
 
                     elif reviewer_details['type'] == 'google_client':
-                        # Use GenerateContentConfig for reviewer as well
                         content_config_obj_reviewer = GenerateContentConfig(
                             candidate_count=base_reviewer_generation_config_params["candidate_count"],
                             temperature=base_reviewer_generation_config_params["temperature"]
-                            # Safety settings removed
-                            # No tools needed for reviewer by default
                         )
                         response = reviewer_details['client'].models.generate_content(
                             model=f"models/{reviewer_details['model_id']}",
                             contents=final_compare_prompt,
-                            generation_config=content_config_obj_reviewer
+                            config=content_config_obj_reviewer # Changed from generation_config to config
                         )
                         reviewer_output_text = response.text
 
