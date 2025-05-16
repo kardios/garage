@@ -5,7 +5,8 @@ import telebot
 import google.generativeai as genai # For Gemini
 from openai import OpenAI
 from anthropic import Anthropic # For Claude
-from google.generativeai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig, GoogleSearch
+# Updated import: Removed GoogleSearch, as it's not directly in types for this usage.
+from google.generativeai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- CONFIGURATION ---
@@ -113,7 +114,7 @@ with st.expander("Click to read documentation", expanded=True):
     st.write("2.  Select up to five **CV generation models** from the list. These models are equipped with web search or grounding capabilities to fetch up-to-date information:")
     st.write("    -   **Sonar** (Perplexity - `sonar-pro`)")
     st.write("    -   **Deepseek** (Perplexity - `sonar-reasoning`)")
-    st.write("    -   **Gemini 2.5 Flash (Grounding)** (Google - `gemini-2.5-flash-latest`)") # Updated
+    st.write("    -   **Gemini 2.5 Flash (Grounding)** (Google - `gemini-2.5-flash-latest`)")
     st.write("    -   **GPT-4.1 (Web Search)** (OpenAI - `gpt-4.1`)")
     st.write("    -   **Claude 3.7 Sonnet (Web Search)** (Anthropic - `claude-3.7-sonnet-latest`)")
     st.write("3.  If you select more than one generation model, choose one **reasoning model** to compare the generated CVs:")
@@ -125,7 +126,7 @@ with st.expander("Click to read documentation", expanded=True):
 GENERATION_MODELS_OPTIONS = {
     'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity'},
     'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity'},
-    'Gemini 2.5 Flash (Grounding)': {'client': client_google, 'model_id': 'gemini-2.5-flash-latest', 'type': 'google_grounding'}, # Updated
+    'Gemini 2.5 Flash (Grounding)': {'client': client_google, 'model_id': 'gemini-2.5-flash-latest', 'type': 'google_grounding'},
     'GPT-4.1 (Web Search)': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_websearch'},
     'Claude 3.7 Sonnet (Web Search)': {'client': client_anthropic, 'model_id': 'claude-3.7-sonnet-latest', 'type': 'anthropic_websearch'}
 }
@@ -206,9 +207,10 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'google_grounding':
-                        google_search_tool = Tool(google_search=GoogleSearch())
+                        # Updated: Pass an empty dict to enable Google Search tool with default config
+                        google_search_tool = Tool(google_search={})
                         gemini_model_instance = model_details['client'].GenerativeModel(
-                            model_name=model_details['model_id'], # This will now be 'gemini-2.5-flash-latest'
+                            model_name=model_details['model_id'],
                             tools=[google_search_tool],
                             generation_config=generation_config_gemini,
                             safety_settings=safety_settings_gemini
