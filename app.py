@@ -5,8 +5,8 @@ import telebot
 import google.generativeai as genai # For Gemini
 from openai import OpenAI
 from anthropic import Anthropic # For Claude
-# Updated import: Added GoogleSearch from google.generativeai.types
-from google.generativeai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig, GoogleSearch
+# Updated import: Removed GoogleSearch as it's not directly importable here. Tool is still needed.
+from google.generativeai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- CONFIGURATION ---
@@ -207,13 +207,10 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'google_grounding':
-                        # Correctly construct the Tool object for Google Search
-                        # Instantiate GoogleSearch type and assign it to the google_search field of Tool
-                        tool_for_google_search = Tool(google_search=GoogleSearch())
-
+                        # Enable Google Search by passing its string identifier in the tools list
                         gemini_model_instance = model_details['client'].GenerativeModel(
                             model_name=model_details['model_id'],
-                            tools=[tool_for_google_search],
+                            tools=['google_search'], # Use string identifier for the tool
                             generation_config=generation_config_gemini,
                             safety_settings=safety_settings_gemini
                         )
