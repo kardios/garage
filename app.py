@@ -142,16 +142,16 @@ if not available_reviewer_models:
 Intern_Select = st.multiselect(
     "Which **CV generation models** would you like to deploy? (Select up to 5)",
     options=available_generation_models,
-    default=available_generation_models[:min(len(available_generation_models), 2)],
+    default=available_generation_models, # Updated: Default to all available models
     max_selections=5
 )
 
 Reviewer_Name = None
 if available_reviewer_models:
-    default_reviewer_index = 0 # Fallback to the first available
-    if 'Gemini 2.5 Pro (Reasoning)' in available_reviewer_models: # New default
+    default_reviewer_index = 0 
+    if 'Gemini 2.5 Pro (Reasoning)' in available_reviewer_models: 
         default_reviewer_index = available_reviewer_models.index('Gemini 2.5 Pro (Reasoning)')
-    elif 'OpenAI o3' in available_reviewer_models: # Old default as a secondary option
+    elif 'OpenAI o3' in available_reviewer_models: 
          default_reviewer_index = available_reviewer_models.index('OpenAI o3')
 
     Reviewer_Name = st.selectbox(
