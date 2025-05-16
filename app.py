@@ -113,7 +113,7 @@ with st.expander("Click to read documentation", expanded=True):
     st.write("    -   **Claude** (Anthropic - `claude-3-7-sonnet-20250219`)") 
     st.write("3.  If you select more than one generation model, choose one **reasoning model** to compare the generated CVs:")
     st.write("    -   **OpenAI o3** (OpenAI - Advanced reasoning model. *Ensure 'o3' is a valid model ID for your API key.*)")
-    st.write("    -   **Gemini 2.5 Pro (Reasoning)** (Google - Powerful alternative for comparison. *Uses 'gemini-2.5-pro-latest'.*)")
+    st.write("    -   **Gemini 2.5 Pro (Reasoning)** (Google - Powerful alternative for comparison. *Uses 'gemini-2.5-pro-preview-05-06'.*)") # Updated model ID note
     st.write("4.  Click 'Generate CVs & Compare!' to start the process.")
     st.write("5.  Review the generated CVs and the comparison report. You can copy individual CVs or the full comparison.")
 
@@ -127,7 +127,7 @@ GENERATION_MODELS_OPTIONS = {
 
 REVIEWER_MODELS_OPTIONS = {
     'OpenAI o3': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'},
-    'Gemini 2.5 Pro (Reasoning)': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-latest', 'type': 'google_client'}
+    'Gemini 2.5 Pro (Reasoning)': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-preview-05-06', 'type': 'google_client'} # Updated model_id
 }
 
 # Filter out unavailable models based on API key presence
@@ -142,7 +142,7 @@ if not available_reviewer_models:
 Intern_Select = st.multiselect(
     "Which **CV generation models** would you like to deploy? (Select up to 5)",
     options=available_generation_models,
-    default=available_generation_models, # Updated: Default to all available models
+    default=available_generation_models, 
     max_selections=5
 )
 
