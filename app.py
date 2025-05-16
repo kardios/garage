@@ -9,6 +9,9 @@ from anthropic import Anthropic
 from google.genai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig, GoogleSearch
 from st_copy_to_clipboard import st_copy_to_clipboard
 
+# --- PAGE CONFIGURATION (MUST BE THE FIRST STREAMLIT COMMAND) ---
+st.set_page_config(page_title="CV Generator Pro", page_icon=":briefcase:")
+
 # --- CONFIGURATION ---
 # Retrieve API keys from environment variables
 PERPLEXITY_API_KEY = os.environ.get('PERPLEXITY_API_KEY')
@@ -24,9 +27,9 @@ if BOT_TOKEN and RECIPIENT_USER_ID:
     try:
         bot = telebot.TeleBot(BOT_TOKEN)
     except Exception as e:
-        st.error(f"Failed to initialize Telegram Bot: {e}")
+        st.error(f"Failed to initialize Telegram Bot: {e}") # This is now after set_page_config
 else:
-    st.warning("Telegram Bot token or Recipient User ID not found. Notifications will be disabled.")
+    st.warning("Telegram Bot token or Recipient User ID not found. Notifications will be disabled.") # This is now after set_page_config
 
 # Initialize API Clients
 client_perplexity = None
@@ -41,7 +44,7 @@ if OPENAI_API_KEY:
 else:
     st.warning("OpenAI API Key not found. GPT models will be unavailable.")
 
-client_google = None 
+client_google = None
 if GOOGLE_API_KEY:
     try:
         # 'genai' is now the imported module from 'from google import genai'
@@ -69,11 +72,11 @@ safety_settings_gemini = {
 # Generation config for Google Gemini
 generation_config_gemini = GenerationConfig(
     candidate_count=1,
-    temperature=0.5, 
+    temperature=0.5,
 )
 generation_config_gemini_reviewer = GenerationConfig(
     candidate_count=1,
-    temperature=0.3, 
+    temperature=0.3,
 )
 
 
@@ -105,7 +108,7 @@ This format is designed to provide a clear and detailed overview of an individua
     return prompt
 
 # --- STREAMLIT UI ---
-st.set_page_config(page_title="CV Generator Pro", page_icon=":briefcase:")
+# st.set_page_config is now at the top of the script
 st.write("## **CV Generator Pro** :briefcase:")
 
 with st.expander("Click to read documentation", expanded=True):
