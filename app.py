@@ -2,11 +2,12 @@ import streamlit as st
 import os
 import time
 import telebot
-from google import genai # Changed import style for Google
+from google import genai # User-specified import
 from openai import OpenAI
 from anthropic import Anthropic
-# Changed import style for Google types
-from google.genai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig, GoogleSearch
+# User-specified import for Google types
+from google.genai.types import Tool, GenerationConfig, GoogleSearch, GenerateContentConfig
+# HarmCategory and HarmBlockThreshold are no longer needed if safety_settings are not used in GenerateContentConfig
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- PAGE CONFIGURATION (MUST BE THE FIRST STREAMLIT COMMAND) ---
@@ -47,8 +48,7 @@ else:
 client_google_sdk = None # This will hold the genai.Client() instance
 if GOOGLE_API_KEY:
     try:
-        # Note: genai.configure() is not used when using genai.Client() as it handles auth.
-        client_google_sdk = genai.Client(api_key=GOOGLE_API_KEY)
+        client_google_sdk = genai.Client(api_key=GOOGLE_API_KEY) # Initialize client
     except Exception as e:
         st.error(f"Failed to initialize Google Gemini Client: {e}")
 else:
@@ -60,16 +60,8 @@ if ANTHROPIC_API_KEY:
 else:
     st.warning("Anthropic API Key not found. Claude models will be unavailable.")
 
-# Safety settings for Google Gemini
-safety_settings_gemini = {
-    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-}
-
-# Base Generation config for Google Gemini (temperature, candidate_count)
-# These will be part of GenerateContentConfig for client.models.generate_content
+# Base Generation parameters for Google Gemini
+# These will be used to create a GenerationConfig instance
 base_generation_config_params = {
     "candidate_count": 1,
     "temperature": 0.5,
@@ -128,14 +120,14 @@ with st.expander("Click to read documentation", expanded=True):
 GENERATION_MODELS_OPTIONS = {
     'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity'},
     'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity'},
-    'Gemini 2.0 Flash (Grounding)': {'client': client_google_sdk, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_client_grounding'}, # Updated type
+    'Gemini 2.0 Flash (Grounding)': {'client': client_google_sdk, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_client_grounding'},
     'GPT-4.1 (Web Search)': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch'},
     'Claude 3.7 Sonnet (Web Search)': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch'}
 }
 
 REVIEWER_MODELS_OPTIONS = {
     'OpenAI o3': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'},
-    'Gemini 2.5 Pro (Reasoning)': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-latest', 'type': 'google_client'} # Updated type
+    'Gemini 2.5 Pro (Reasoning)': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-latest', 'type': 'google_client'}
 }
 
 # Filter out unavailable models based on API key presence
@@ -211,15 +203,21 @@ if st.button("Generate CVs & Compare! :rocket:"):
                     elif model_details['type'] == 'google_client_grounding':
                         google_search_tool_instance = Tool(google_search=GoogleSearch())
                         
-                        config = GenerationConfig(
-                            tools=[google_search_tool_instance],
-                            safety_settings=safety_settings_gemini,
-                            **base_generation_config_params # Unpack temperature, candidate_count
+                        # Create GenerationConfig for temperature, candidate_count, etc.
+                        gen_config_obj = GenerationConfig(
+                            candidate_count=base_generation_config_params["candidate_count"],
+                            temperature=base_generation_config_params["temperature"]
                         )
-                        response = model_details['client'].models.generate_content(
-                            model=f"models/{model_details['model_id']}", # Model name needs 'models/' prefix for client.models
+                        # Create GenerateContentConfig for tools and the GenerationConfig instance
+                        # Safety settings are removed as per user request to follow documentation example
+                        content_config_obj = GenerateContentConfig(
+                            tools=[google_search_tool_instance],
+                            generation_config=gen_config_obj
+                        )
+                        response = model_details['client'].models.generate_content( # client is genai.Client() instance
+                            model=f"models/{model_details['model_id']}", 
                             contents=Customised_Prompt,
-                            config=config
+                            generation_config=content_config_obj # Pass the GenerateContentConfig object
                         )
                         output_text = response.text
                         if response.candidates and response.candidates[0].grounding_metadata:
@@ -395,16 +393,20 @@ if st.button("Generate CVs & Compare! :rocket:"):
                         )
                         reviewer_output_text = response.choices[0].message.content
 
-                    elif reviewer_details['type'] == 'google_client': # Updated type for reviewer if Gemini
-                        config = GenerationConfig(
-                            safety_settings=safety_settings_gemini,
-                            **base_reviewer_generation_config_params # Unpack temperature, candidate_count
-                            # Reviewer typically doesn't need tools unless it's also searching
+                    elif reviewer_details['type'] == 'google_client':
+                        gen_config_obj_reviewer = GenerationConfig(
+                            candidate_count=base_reviewer_generation_config_params["candidate_count"],
+                            temperature=base_reviewer_generation_config_params["temperature"]
+                        )
+                        # Safety settings removed from GenerateContentConfig for reviewer as well
+                        content_config_obj_reviewer = GenerateContentConfig(
+                            generation_config=gen_config_obj_reviewer
+                            # No tools needed for reviewer by default
                         )
                         response = reviewer_details['client'].models.generate_content(
                             model=f"models/{reviewer_details['model_id']}",
                             contents=final_compare_prompt,
-                            config=config
+                            generation_config=content_config_obj_reviewer
                         )
                         reviewer_output_text = response.text
 
