@@ -5,7 +5,7 @@ import telebot
 import google.generativeai as genai # For Gemini
 from openai import OpenAI
 from anthropic import Anthropic # For Claude
-# Updated import: Removed GoogleSearch, as it's not directly in types for this usage.
+# Updated import: Tool is used to enable general tool usage for Gemini.
 from google.generativeai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig
 from st_copy_to_clipboard import st_copy_to_clipboard
 
@@ -116,7 +116,7 @@ with st.expander("Click to read documentation", expanded=True):
     st.write("    -   **Deepseek** (Perplexity - `sonar-reasoning`)")
     st.write("    -   **Gemini 2.5 Flash (Grounding)** (Google - `gemini-2.5-flash-latest`)")
     st.write("    -   **GPT-4.1 (Web Search)** (OpenAI - `gpt-4.1`)")
-    st.write("    -   **Claude 3.7 Sonnet (Web Search)** (Anthropic - `claude-3-7-sonnet-20250219`)") # Updated
+    st.write("    -   **Claude 3.7 Sonnet (Web Search)** (Anthropic - `claude-3-7-sonnet-20250219`)")
     st.write("3.  If you select more than one generation model, choose one **reasoning model** to compare the generated CVs:")
     st.write("    -   **OpenAI o3** (OpenAI - Advanced reasoning model. *Ensure 'o3' is a valid model ID for your API key.*)")
     st.write("    -   **Gemini 2.5 Pro (Reasoning)** (Google - Powerful alternative for comparison. *Uses 'gemini-2.5-pro-latest'.*)")
@@ -128,7 +128,7 @@ GENERATION_MODELS_OPTIONS = {
     'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity'},
     'Gemini 2.5 Flash (Grounding)': {'client': client_google, 'model_id': 'gemini-2.5-flash-latest', 'type': 'google_grounding'},
     'GPT-4.1 (Web Search)': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_websearch'},
-    'Claude 3.7 Sonnet (Web Search)': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch'} # Updated
+    'Claude 3.7 Sonnet (Web Search)': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch'}
 }
 
 REVIEWER_MODELS_OPTIONS = {
@@ -207,9 +207,10 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'google_grounding':
+                        # Enable generic tool usage; model decides if Google Search is needed.
                         gemini_model_instance = model_details['client'].GenerativeModel(
                             model_name=model_details['model_id'],
-                            tools=[{'google_search': {}}],
+                            tools=[Tool()], # Pass a Tool object to enable tool capabilities
                             generation_config=generation_config_gemini,
                             safety_settings=safety_settings_gemini
                         )
@@ -238,7 +239,7 @@ if st.button("Generate CVs & Compare! :rocket:"):
 
                     elif model_details['type'] == 'anthropic_websearch':
                         response = model_details['client'].messages.create(
-                            model=model_details['model_id'], # Now 'claude-3-7-sonnet-20250219'
+                            model=model_details['model_id'], 
                             max_tokens=4096,
                             messages=[{"role": "user", "content": Customised_Prompt}],
                             tools=[{"type": "web_search_20250305", "name": "web_search"}]
@@ -336,6 +337,7 @@ if st.button("Generate CVs & Compare! :rocket:"):
                             model_name=reviewer_details['model_id'],
                             generation_config=generation_config_gemini_reviewer,
                             safety_settings=safety_settings_gemini
+                            # Note: Reviewer models typically don't need 'tools' unless they also search.
                         )
                         response = reviewer_model_instance.generate_content(final_compare_prompt)
                         reviewer_output_text = response.text
