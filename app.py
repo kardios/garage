@@ -2,10 +2,10 @@ import streamlit as st
 import os
 import time
 import telebot
-from google import genai # Use 'from google import genai' as requested
+from google import genai # Changed import style for Google
 from openai import OpenAI
 from anthropic import Anthropic
-# Import types from google.genai.types as requested
+# Changed import style for Google types
 from google.genai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig, GoogleSearch
 from st_copy_to_clipboard import st_copy_to_clipboard
 
@@ -27,9 +27,9 @@ if BOT_TOKEN and RECIPIENT_USER_ID:
     try:
         bot = telebot.TeleBot(BOT_TOKEN)
     except Exception as e:
-        st.error(f"Failed to initialize Telegram Bot: {e}") # This is now after set_page_config
+        st.error(f"Failed to initialize Telegram Bot: {e}")
 else:
-    st.warning("Telegram Bot token or Recipient User ID not found. Notifications will be disabled.") # This is now after set_page_config
+    st.warning("Telegram Bot token or Recipient User ID not found. Notifications will be disabled.")
 
 # Initialize API Clients
 client_perplexity = None
@@ -44,14 +44,13 @@ if OPENAI_API_KEY:
 else:
     st.warning("OpenAI API Key not found. GPT models will be unavailable.")
 
-client_google = None
+client_google_sdk = None # This will hold the genai.Client() instance
 if GOOGLE_API_KEY:
     try:
-        # 'genai' is now the imported module from 'from google import genai'
-        genai.configure(api_key=GOOGLE_API_KEY)
-        client_google = genai # client_google will be the genai module itself
+        # Note: genai.configure() is not used when using genai.Client() as it handles auth.
+        client_google_sdk = genai.Client(api_key=GOOGLE_API_KEY)
     except Exception as e:
-        st.error(f"Failed to configure Google Gemini API: {e}")
+        st.error(f"Failed to initialize Google Gemini Client: {e}")
 else:
     st.warning("Google API Key not found. Gemini models will be unavailable.")
 
@@ -69,15 +68,16 @@ safety_settings_gemini = {
     HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
 }
 
-# Generation config for Google Gemini
-generation_config_gemini = GenerationConfig(
-    candidate_count=1,
-    temperature=0.5,
-)
-generation_config_gemini_reviewer = GenerationConfig(
-    candidate_count=1,
-    temperature=0.3,
-)
+# Base Generation config for Google Gemini (temperature, candidate_count)
+# These will be part of GenerateContentConfig for client.models.generate_content
+base_generation_config_params = {
+    "candidate_count": 1,
+    "temperature": 0.5,
+}
+base_reviewer_generation_config_params = {
+    "candidate_count": 1,
+    "temperature": 0.3,
+}
 
 
 # --- PROMPT GENERATION ---
@@ -108,7 +108,6 @@ This format is designed to provide a clear and detailed overview of an individua
     return prompt
 
 # --- STREAMLIT UI ---
-# st.set_page_config is now at the top of the script
 st.write("## **CV Generator Pro** :briefcase:")
 
 with st.expander("Click to read documentation", expanded=True):
@@ -129,14 +128,14 @@ with st.expander("Click to read documentation", expanded=True):
 GENERATION_MODELS_OPTIONS = {
     'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity'},
     'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity'},
-    'Gemini 2.0 Flash (Grounding)': {'client': client_google, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_grounding'},
+    'Gemini 2.0 Flash (Grounding)': {'client': client_google_sdk, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_client_grounding'}, # Updated type
     'GPT-4.1 (Web Search)': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch'},
     'Claude 3.7 Sonnet (Web Search)': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch'}
 }
 
 REVIEWER_MODELS_OPTIONS = {
     'OpenAI o3': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'},
-    'Gemini 2.5 Pro (Reasoning)': {'client': client_google, 'model_id': 'gemini-2.5-pro-latest', 'type': 'google'}
+    'Gemini 2.5 Pro (Reasoning)': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-latest', 'type': 'google_client'} # Updated type
 }
 
 # Filter out unavailable models based on API key presence
@@ -209,18 +208,19 @@ if st.button("Generate CVs & Compare! :rocket:"):
                             if sources_list:
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
-                    elif model_details['type'] == 'google_grounding':
-                        # Construct the Tool object for Google Search using imported GoogleSearch type
-                        tool_for_google_search = Tool(google_search=GoogleSearch())
-
-                        # model_details['client'] is the 'genai' module
-                        gemini_model_instance = model_details['client'].GenerativeModel(
-                            model_name=model_details['model_id'],
-                            tools=[tool_for_google_search],
-                            generation_config=generation_config_gemini,
-                            safety_settings=safety_settings_gemini
+                    elif model_details['type'] == 'google_client_grounding':
+                        google_search_tool_instance = Tool(google_search=GoogleSearch())
+                        
+                        config = GenerationConfig(
+                            tools=[google_search_tool_instance],
+                            safety_settings=safety_settings_gemini,
+                            **base_generation_config_params # Unpack temperature, candidate_count
                         )
-                        response = gemini_model_instance.generate_content(Customised_Prompt)
+                        response = model_details['client'].models.generate_content(
+                            model=f"models/{model_details['model_id']}", # Model name needs 'models/' prefix for client.models
+                            contents=Customised_Prompt,
+                            config=config
+                        )
                         output_text = response.text
                         if response.candidates and response.candidates[0].grounding_metadata:
                             gm = response.candidates[0].grounding_metadata
@@ -395,14 +395,17 @@ if st.button("Generate CVs & Compare! :rocket:"):
                         )
                         reviewer_output_text = response.choices[0].message.content
 
-                    elif reviewer_details['type'] == 'google':
-                        # 'client_google' is the 'genai' module here
-                        reviewer_model_instance = reviewer_details['client'].GenerativeModel(
-                            model_name=reviewer_details['model_id'],
-                            generation_config=generation_config_gemini_reviewer,
-                            safety_settings=safety_settings_gemini
+                    elif reviewer_details['type'] == 'google_client': # Updated type for reviewer if Gemini
+                        config = GenerationConfig(
+                            safety_settings=safety_settings_gemini,
+                            **base_reviewer_generation_config_params # Unpack temperature, candidate_count
+                            # Reviewer typically doesn't need tools unless it's also searching
                         )
-                        response = reviewer_model_instance.generate_content(final_compare_prompt)
+                        response = reviewer_details['client'].models.generate_content(
+                            model=f"models/{reviewer_details['model_id']}",
+                            contents=final_compare_prompt,
+                            config=config
+                        )
                         reviewer_output_text = response.text
 
                     end_time = time.time()
