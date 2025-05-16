@@ -61,7 +61,7 @@ else:
     st.warning("Anthropic API Key not found. Claude models will be unavailable.")
 
 # Base Generation parameters for Google Gemini
-# These will be used to create a GenerationConfig instance
+# These will be used directly in GenerateContentConfig
 base_generation_config_params = {
     "candidate_count": 1,
     "temperature": 0.5,
@@ -203,21 +203,17 @@ if st.button("Generate CVs & Compare! :rocket:"):
                     elif model_details['type'] == 'google_client_grounding':
                         google_search_tool_instance = Tool(google_search=GoogleSearch())
                         
-                        # Create GenerationConfig for temperature, candidate_count, etc.
-                        gen_config_obj = GenerationConfig(
-                            candidate_count=base_generation_config_params["candidate_count"],
-                            temperature=base_generation_config_params["temperature"]
-                        )
-                        # Create GenerateContentConfig for tools and the GenerationConfig instance
-                        # Safety settings are removed as per user request to follow documentation example
+                        # Create GenerateContentConfig with parameters directly
                         content_config_obj = GenerateContentConfig(
                             tools=[google_search_tool_instance],
-                            generation_config=gen_config_obj
+                            candidate_count=base_generation_config_params["candidate_count"],
+                            temperature=base_generation_config_params["temperature"]
+                            # Safety settings removed as per user request
                         )
-                        response = model_details['client'].models.generate_content( # client is genai.Client() instance
+                        response = model_details['client'].models.generate_content( 
                             model=f"models/{model_details['model_id']}", 
                             contents=Customised_Prompt,
-                            generation_config=content_config_obj # Pass the GenerateContentConfig object
+                            generation_config=content_config_obj 
                         )
                         output_text = response.text
                         if response.candidates and response.candidates[0].grounding_metadata:
@@ -394,13 +390,11 @@ if st.button("Generate CVs & Compare! :rocket:"):
                         reviewer_output_text = response.choices[0].message.content
 
                     elif reviewer_details['type'] == 'google_client':
-                        gen_config_obj_reviewer = GenerationConfig(
+                        # Use GenerateContentConfig for reviewer as well
+                        content_config_obj_reviewer = GenerateContentConfig(
                             candidate_count=base_reviewer_generation_config_params["candidate_count"],
                             temperature=base_reviewer_generation_config_params["temperature"]
-                        )
-                        # Safety settings removed from GenerateContentConfig for reviewer as well
-                        content_config_obj_reviewer = GenerateContentConfig(
-                            generation_config=gen_config_obj_reviewer
+                            # Safety settings removed
                             # No tools needed for reviewer by default
                         )
                         response = reviewer_details['client'].models.generate_content(
