@@ -2,11 +2,11 @@ import streamlit as st
 import os
 import time
 import telebot
-import google.generativeai as genai # For Gemini
-from openai import OpenAI # Ensure this is imported if not already
-from anthropic import Anthropic # For Claude
-# Updated import: Added GoogleSearch as per documentation
-from google.generativeai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig, GoogleSearch
+from google import genai # Use 'from google import genai' as requested
+from openai import OpenAI
+from anthropic import Anthropic
+# Import types from google.genai.types as requested
+from google.genai.types import HarmCategory, HarmBlockThreshold, Tool, GenerationConfig, GoogleSearch
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- CONFIGURATION ---
@@ -37,18 +37,18 @@ else:
 
 client_openai = None
 if OPENAI_API_KEY:
-    client_openai = OpenAI() # Standard initialization
+    client_openai = OpenAI()
 else:
     st.warning("OpenAI API Key not found. GPT models will be unavailable.")
 
-client_google = None # Initialize to None
+client_google = None 
 if GOOGLE_API_KEY:
     try:
+        # 'genai' is now the imported module from 'from google import genai'
         genai.configure(api_key=GOOGLE_API_KEY)
-        client_google = genai # Assign the configured genai module
+        client_google = genai # client_google will be the genai module itself
     except Exception as e:
         st.error(f"Failed to configure Google Gemini API: {e}")
-        # client_google remains None, so Gemini models will be filtered out
 else:
     st.warning("Google API Key not found. Gemini models will be unavailable.")
 
@@ -69,11 +69,11 @@ safety_settings_gemini = {
 # Generation config for Google Gemini
 generation_config_gemini = GenerationConfig(
     candidate_count=1,
-    temperature=0.5, # Standard temperature
+    temperature=0.5, 
 )
 generation_config_gemini_reviewer = GenerationConfig(
     candidate_count=1,
-    temperature=0.3, # Lower temperature for more factual comparison
+    temperature=0.3, 
 )
 
 
@@ -207,9 +207,10 @@ if st.button("Generate CVs & Compare! :rocket:"):
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'google_grounding':
-                        # Correctly construct the Tool object for Google Search as per documentation
+                        # Construct the Tool object for Google Search using imported GoogleSearch type
                         tool_for_google_search = Tool(google_search=GoogleSearch())
 
+                        # model_details['client'] is the 'genai' module
                         gemini_model_instance = model_details['client'].GenerativeModel(
                             model_name=model_details['model_id'],
                             tools=[tool_for_google_search],
@@ -392,6 +393,7 @@ if st.button("Generate CVs & Compare! :rocket:"):
                         reviewer_output_text = response.choices[0].message.content
 
                     elif reviewer_details['type'] == 'google':
+                        # 'client_google' is the 'genai' module here
                         reviewer_model_instance = reviewer_details['client'].GenerativeModel(
                             model_name=reviewer_details['model_id'],
                             generation_config=generation_config_gemini_reviewer,
