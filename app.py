@@ -117,8 +117,8 @@ with st.expander("Click to read documentation", expanded=True):
     st.write("1.  Enter the name of the individual for whom you want to generate a CV.")
     st.write("2.  Select up to five **CV generation models** from the list. These models are equipped with web search or grounding capabilities to fetch up-to-date information:")
     st.markdown("""
-        -   **Sonar**: Perplexity model, good for broad research.
-        -   **Deepseek**: Perplexity model, focused on reasoning.
+        -   **Sonar**: Perplexity model, good for broad research. Search context size set to 'high'.
+        -   **Deepseek**: Perplexity model, focused on reasoning. Search context size set to 'high'.
         -   **Gemini**: Google model with web grounding capabilities (`gemini-2.0-flash-001`).
         -   **Optima**: OpenAI model with web search capabilities (`gpt-4.1`). Web search is enabled via the Responses API; structured citations may not be as detailed as other models.
         -   **Claude**: Anthropic model with web search capabilities (`claude-3-7-sonnet-20250219`).
@@ -130,8 +130,8 @@ with st.expander("Click to read documentation", expanded=True):
     st.write("5.  Review the generated CVs and the synthesized CV(s).")
 
 GENERATION_MODELS_OPTIONS = {
-    'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity', 'description': "Perplexity model, good for broad research."},
-    'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity', 'description': "Perplexity model, focused on reasoning."},
+    'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity', 'description': "Perplexity model, good for broad research. Search context: high."},
+    'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity', 'description': "Perplexity model, focused on reasoning. Search context: high."},
     'Gemini': {'client': client_google_sdk, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_client_grounding', 'description': "Google model with web grounding capabilities."},
     'Optima': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch', 'description': "OpenAI model with web search capabilities (via Responses API)."},
     'Claude': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch', 'description': "Anthropic model with web search capabilities."}
@@ -165,7 +165,7 @@ Intern_Select = st.multiselect(
     options=available_generation_models,
     default=available_generation_models, 
     max_selections=5,
-    label_visibility="collapsed" # Hides the main label as we have a subheader now
+    label_visibility="collapsed" 
 )
 
 Reviewer_Select = None
@@ -185,7 +185,7 @@ if len(Intern_Select) > 1 and available_reviewer_models:
         default=default_reviewers,
         label_visibility="collapsed"
     )
-elif len(Intern_Select) <=1 and Intern_Select : # Only show info if at least one intern is selected
+elif len(Intern_Select) <=1 and Intern_Select : 
      st.info("Select more than one CV generation model to enable synthesis by a reviewer.")
 
 
@@ -204,7 +204,6 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
         key_phrase = input_text
         st.divider()
         
-        # Overall progress bar
         total_steps = len(Intern_Select) + (len(Reviewer_Select) if len(Intern_Select) > 1 and Reviewer_Select else 0)
         progress_bar = None
         if total_steps > 0:
@@ -218,24 +217,27 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
             model_details = GENERATION_MODELS_OPTIONS[intern_name]
             if not model_details['client']:
                 st.warning(f"{intern_name} is unavailable (client not configured). Skipping.")
-                if progress_bar: # Increment step even if skipped for progress bar accuracy
+                if progress_bar: 
                     current_step += 1
                     progress_bar.progress(current_step / total_steps)
                 continue
 
             st.subheader(f"Generating CV with: {intern_name}")
             output_text = "Error: No output generated."
-            sources_text = "Sources: Not applicable or not provided by the model for this output." # Default neutral message
+            sources_text = "Sources: Not applicable or not provided by the model for this output." 
             start_time = time.time()
 
             try:
-                with st.spinner(f"Asking {intern_name} to draft the CV... This may take a moment."): # Dynamic spinner text
+                with st.spinner(f"Asking {intern_name} to draft the CV... This may take a moment."): 
                     if model_details['type'] == 'perplexity':
+                        # Add web_search_options for Perplexity models
                         response = model_details['client'].chat.completions.create(
                             model=model_details['model_id'],
                             messages=[{"role": "user", "content": Customised_Prompt}],
-                            temperature=0.5
+                            temperature=0.5,
+                            web_search_options={"search_context_size": "high"} # Added
                         )
+                        st.write(response)
                         output_text = response.choices[0].message.content
                         if hasattr(response, 'citations') and response.citations:
                             sources_list = [f"- [{c.title}]({c.url})" for c in response.citations if hasattr(c, 'url') and hasattr(c, 'title') and c.url and c.title]
@@ -331,7 +333,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
 
                     end_time = time.time()
                     
-                    st.markdown(f"### Draft CV from {intern_name}") # More distinct header
+                    st.markdown(f"### Draft CV from {intern_name}") 
                     with st.expander(f"View/Copy CV from **{intern_name}** for **{key_phrase}**", expanded=True):
                         st.markdown(output_text)
                         st.markdown("---")
@@ -352,7 +354,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                             st.warning(f"Telegram notification failed for {intern_name}: {bot_e}")
                     st.snow()
 
-            except openai.APIStatusError as e: # Specific OpenAI error
+            except openai.APIStatusError as e: 
                 st.error(f"OpenAI API Error with {intern_name}: {e.status_code} - {e.message}")
                 if e.status_code == 401:
                      st.error("Please check your OpenAI API key and organization if applicable.")
@@ -402,7 +404,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
 
         if combined_output_for_copying:
             st.divider()
-            st.subheader("All Generated CV Drafts (for copying)") # More distinct header
+            st.subheader("All Generated CV Drafts (for copying)") 
             st.write("*Click* :clipboard: *to copy all generated CVs and their sources to clipboard*")
             st_copy_to_clipboard(combined_output_for_copying)
             st.divider()
@@ -410,8 +412,8 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
         successfully_generated_cvs = {k: v for k, v in generated_cv_data.items() if not v['text'].startswith("Error:")}
 
         if len(successfully_generated_cvs) > 1 and Reviewer_Select: 
-            st.markdown("---") # Divider before synthesis section
-            st.header("Synthesized CV(s)") # More distinct header
+            st.markdown("---") 
+            st.header("Synthesized CV(s)") 
             for reviewer_name_selected in Reviewer_Select: 
                 st.subheader(f"Synthesized by {reviewer_name_selected}") 
                 reviewer_details = REVIEWER_MODELS_OPTIONS[reviewer_name_selected]
@@ -454,7 +456,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                 final_synthesis_prompt = "".join(synthesis_prompt_parts)
 
                 try:
-                    with st.spinner(f"{reviewer_name_selected} is synthesizing the CV... This might take some time."): # Dynamic spinner
+                    with st.spinner(f"{reviewer_name_selected} is synthesizing the CV... This might take some time."): 
                         start_time = time.time()
                         synthesized_cv_text = "Error: No synthesized CV generated."
 
@@ -493,13 +495,13 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                                  st.warning(f"Telegram notification failed for {reviewer_name_selected}: {bot_e}")
                         st.balloons()
 
-                except openai.APIStatusError as e: # Specific OpenAI error for reviewer
+                except openai.APIStatusError as e: 
                     st.error(f"OpenAI API Error with {reviewer_name_selected}: {e.status_code} - {e.message}")
                     if e.status_code == 401:
                         st.error("Please check your OpenAI API key and organization if applicable.")
                     elif e.status_code == 429:
                         st.error("OpenAI rate limit exceeded. Please try again later or check your usage limits.")
-                except Exception as e: # General errors for reviewer
+                except Exception as e: 
                     st.error(f"An error occurred with {reviewer_name_selected} during synthesis: {e}")
                 
                 if progress_bar:
