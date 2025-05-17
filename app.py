@@ -54,7 +54,7 @@ client_openai = None
 if OPENAI_API_KEY:
     client_openai = OpenAI()
 else:
-    st.warning("OpenAI API Key (OPENAI_API_KEY) not found. Omni and Oscar models will be unavailable. Please set the environment variable to use these models.") # Updated
+    st.warning("OpenAI API Key (OPENAI_API_KEY) not found. Omni and Oscar models will be unavailable. Please set the environment variable to use these models.")
 
 client_google_sdk = None # This will hold the genai.Client() instance
 if GOOGLE_API_KEY:
@@ -134,7 +134,7 @@ GENERATION_MODELS_OPTIONS = {
     'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity', 'description': "Perplexity model, good for broad research. Search context: high."},
     'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity', 'description': "Perplexity model, focused on reasoning. Search context: high."},
     'Gemini': {'client': client_google_sdk, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_client_grounding', 'description': "Google model with web grounding capabilities."},
-    'Omni': {'client': client_openai, 'model_id': 'gpt-4o', 'type': 'openai_responses_websearch', 'description': "OpenAI model (gpt-4o) with web search capabilities (via Responses API). Search context: high."}, # Updated
+    'Omni': {'client': client_openai, 'model_id': 'gpt-4o', 'type': 'openai_responses_websearch', 'description': "OpenAI model (gpt-4o) with web search capabilities (via Responses API). Search context: high."},
     'Claude': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch', 'description': "Anthropic model with web search capabilities."}
 }
 
@@ -289,12 +289,13 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
 
                     elif model_details['type'] == 'openai_responses_websearch':
                         response = model_details['client'].responses.create(
-                            model=model_details['model_id'], # Now 'gpt-4o'
+                            model=model_details['model_id'], 
                             input=Customised_Prompt,
                             tools=[{
                                 "type": "web_search_preview",
                                 "search_context_size": "high" 
-                            }]
+                            }],
+                            tool_choice={"type": "web_search_preview"} # Force tool use
                         )
                         output_text = response.output_text
                         
@@ -327,13 +328,13 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                                                     openai_sources_list.append(f"- [{annotation.title}]({annotation.url})")
                         
                         if openai_sources_list:
-                            sources_text = "Sources (OpenAI Omni):\n" + "\n".join(list(set(openai_sources_list))) # Updated
+                            sources_text = "Sources (OpenAI Omni):\n" + "\n".join(list(set(openai_sources_list))) 
                         elif any(hasattr(item, 'type') and item.type == "web_search_call" for item in (response.output or [])):
-                            sources_text = "Sources (OpenAI Omni): Web search tool was utilized. No specific citable annotations found in the response." # Updated
+                            sources_text = "Sources (OpenAI Omni): Web search tool was utilized. No specific citable annotations found in the response." 
                             if raw_output_for_debug_str:
                                 sources_text += f"\n\n*Debug: OpenAI `response.output` structure:*\n```json\n{raw_output_for_debug_str}\n```"
                         else:
-                            sources_text = "Sources (OpenAI Omni): Web search was enabled, but the tool does not appear to have been used or no citable annotations were returned." # Updated
+                            sources_text = "Sources (OpenAI Omni): Web search was enabled, but the tool does not appear to have been used or no citable annotations were returned." 
                             if raw_output_for_debug_str:
                                  sources_text += f"\n\n*Debug: OpenAI `response.output` structure:*\n```json\n{raw_output_for_debug_str}\n```"
 
