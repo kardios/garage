@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import time
 import telebot
+import json # Added for debugging output
 from google import genai # User-specified import
 from openai import OpenAI
 from anthropic import Anthropic
@@ -254,8 +255,9 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                                      sources_list.append(f"- [{title}]({url})")
                                 elif hasattr(c, 'title') and hasattr(c, 'url') and c.url: 
                                     sources_list.append(f"- [{c.title}]({c.url})")
-                                else: 
-                                    sources_list.append(f"- {str(c)}")
+                                else: # Fallback for list of strings (as per user's full response)
+                                    if isinstance(c, str) and c.strip():
+                                        sources_list.append(f"- [{c}]({c})") 
                             if sources_list:
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
@@ -291,15 +293,30 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                             input=Customised_Prompt,
                             tools=[{
                                 "type": "web_search_preview",
-                                "search_context_size": "high" # Set to high for Optima
+                                "search_context_size": "high" 
                             }]
                         )
                         output_text = response.output_text
                         
                         openai_sources_list = []
+                        raw_output_for_debug_str = "" # For storing debug string
+
                         if hasattr(response, 'output') and response.output:
+                            try:
+                                # Attempt to serialize for debugging, robustly
+                                serializable_output = []
+                                for item_obj in response.output:
+                                    if hasattr(item_obj, 'model_dump'):
+                                        serializable_output.append(item_obj.model_dump())
+                                    else: # Fallback for objects without model_dump
+                                        serializable_output.append(str(item_obj))
+                                raw_output_for_debug_str = json.dumps(serializable_output, indent=2)
+                            except Exception:
+                                raw_output_for_debug_str = str(response.output) # Fallback to string if JSON dump fails
+
                             for item in response.output:
-                                if item.type == "message" and hasattr(item, 'message') and item.message and \
+                                if hasattr(item, 'type') and item.type == "message" and \
+                                   hasattr(item, 'message') and item.message and \
                                    hasattr(item.message, 'content') and item.message.content:
                                     for content_item in item.message.content:
                                         if hasattr(content_item, 'type') and content_item.type == "output_text" and \
@@ -309,12 +326,17 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                                                    hasattr(annotation, 'url') and annotation.url and \
                                                    hasattr(annotation, 'title') and annotation.title:
                                                     openai_sources_list.append(f"- [{annotation.title}]({annotation.url})")
+                        
                         if openai_sources_list:
-                            sources_text = "Sources:\n" + "\n".join(list(set(openai_sources_list)))
-                        elif any(item.type == "web_search_call" for item in response.output if hasattr(item,'type')): 
-                             sources_text = "Sources: Web search tool was utilized. No specific citations found in annotations."
+                            sources_text = "Sources (OpenAI Optima):\n" + "\n".join(list(set(openai_sources_list)))
+                        elif any(hasattr(item, 'type') and item.type == "web_search_call" for item in (response.output or [])):
+                            sources_text = "Sources (OpenAI Optima): Web search tool was utilized. No specific citable annotations found in the response."
+                            if raw_output_for_debug_str:
+                                sources_text += f"\n\n*Debug: OpenAI `response.output` structure:*\n```json\n{raw_output_for_debug_str}\n```"
                         else:
-                            sources_text = "Sources: Web search enabled. Information likely integrated. No specific citations found."
+                            sources_text = "Sources (OpenAI Optima): Web search was enabled, but the tool does not appear to have been used or no citable annotations were returned."
+                            if raw_output_for_debug_str:
+                                 sources_text += f"\n\n*Debug: OpenAI `response.output` structure:*\n```json\n{raw_output_for_debug_str}\n```"
 
 
                     elif model_details['type'] == 'anthropic_websearch':
@@ -364,7 +386,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                     with st.expander(f"View/Copy CV from **{intern_name}** for **{key_phrase}**", expanded=True):
                         st.markdown(output_text)
                         st.markdown("---")
-                        st.markdown(sources_text)
+                        st.markdown(sources_text) # This will now include the debug info for Optima if no citations found
                         st.markdown("---")
                         st.write(f"*Time to generate: {round(end_time - start_time, 2)} seconds*")
                         st.write("*Click* :clipboard: *to copy this CV and its sources to clipboard*")
