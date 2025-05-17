@@ -230,19 +230,35 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
             try:
                 with st.spinner(f"Asking {intern_name} to draft the CV... This may take a moment."): 
                     if model_details['type'] == 'perplexity':
-                        # Add web_search_options for Perplexity models
                         response = model_details['client'].chat.completions.create(
                             model=model_details['model_id'],
                             messages=[{"role": "user", "content": Customised_Prompt}],
                             temperature=0.5,
-                            web_search_options={"search_context_size": "high"} # Added
+                            web_search_options={"search_context_size": "high"} 
                         )
-                        st.write(response)
                         output_text = response.choices[0].message.content
-                        if hasattr(response, 'citations') and response.citations:
-                            sources_list = [f"- [{c.title}]({c.url})" for c in response.citations if hasattr(c, 'url') and hasattr(c, 'title') and c.url and c.title]
+                        
+                        # Corrected citation handling for Perplexity based on user-provided response structure
+                        # The 'citations' field is a top-level attribute containing a list of URL strings.
+                        if hasattr(response, 'citations') and response.citations and isinstance(response.citations, list):
+                            sources_list = []
+                            for citation_url in response.citations:
+                                if isinstance(citation_url, str) and citation_url.strip():
+                                    # Create a simple markdown link using the URL itself as text
+                                    sources_list.append(f"- [{citation_url}]({citation_url})") 
                             if sources_list:
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
+                        # Fallback if 'citations' is not as expected or model_extra might contain it
+                        elif hasattr(response, 'model_extra') and isinstance(response.model_extra, dict):
+                            processed_citations = response.model_extra.get('citations', [])
+                            if processed_citations and isinstance(processed_citations, list):
+                                sources_list = []
+                                for c_url in processed_citations:
+                                     if isinstance(c_url, str) and c_url.strip():
+                                        sources_list.append(f"- [{c_url}]({c_url})")
+                                if sources_list:
+                                    sources_text = "Sources (from model_extra):\n" + "\n".join(list(set(sources_list)))
+
 
                     elif model_details['type'] == 'google_client_grounding':
                         google_search_tool_instance = Tool(google_search=GoogleSearch())
