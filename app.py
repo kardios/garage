@@ -3,6 +3,7 @@ import os
 import time
 import telebot
 import json 
+from datetime import datetime # Added for dynamic date
 from google import genai 
 from openai import OpenAI
 from anthropic import Anthropic
@@ -74,13 +75,19 @@ base_editor_generation_config_params = {
 }
 
 def generate_cv_prompt(individual):
+    """Generates the prompt for CV creation with the current date."""
+    current_date = datetime.now()
+    # Format: Month YYYY (e.g., May 2025)
+    current_month_year = current_date.strftime("%B %Y") 
+    
     prompt = f"""###Instruction###
 Create a comprehensive biography of {individual} detailing the personal background, education, career progression, and other significant appointments or achievements. The biography should be structured as follows:
+
 1.  **NAME**: Full name of the individual.
 2.  **GOVERNMENT POSITION**: Current or most recent government position held. (If applicable, otherwise most recent significant professional role).
 3.  **COUNTRY**: The official name of the country they serve/worked in or are primarily associated with.
 4.  **BORN**: Date of birth.
-5.  **AGE**: Current age. Calculate the difference between the current date (May 2025) and the date of birth.
+5.  **AGE**: Current age. Calculate the difference between the current date ({current_month_year}) and the date of birth.
 6.  **MARITAL STATUS**: Information on marital status, including spouse and children if applicable. String format.
 7.  **EDUCATION**: Chronological list of educational achievements, including institutions attended and degrees or qualifications obtained. Give the breakdown in the form of PERIOD, INSTITUTION, DEGREE.
 8.  **CAREER**: Detailed account of the individual's career, including positions held, dates of service, and any promotions or notable responsibilities. This section can be continued as needed (e.g., "Career (cont’d)"). Do not miss the details of all promotions and double hatting positions. Give the breakdown in the form of YEAR and POSITION.
@@ -88,14 +95,17 @@ Create a comprehensive biography of {individual} detailing the personal backgrou
 10. **AWARDS and DECORATIONS**: List of awards and decorations received.
 11. **LANGUAGES**: Languages spoken.
 12. **REMARKS**: Any additional noteworthy information or personal achievements, including familial connections to other notable figures if relevant.
-This format is designed to provide a clear and detailed overview of an individual's professional and personal life, highlighting their contributions and achievements in a structured manner. Use up-to-date information available up to May 2025.
+
+This format is designed to provide a clear and detailed overview of an individual's professional and personal life, highlighting their contributions and achievements in a structured manner. Use up-to-date information available up to {current_month_year}.
+
 ###Information###
 [INFO]
+
 ###Biography###"""
     return prompt
 
 st.write("## **CV Generator Pro** :briefcase:")
-with st.expander("Click to read documentation", expanded=True):
+with st.expander("Click to read documentation", expanded=False):
     st.write("This tool generates draft CVs using various Large Language Models (LLMs).")
     st.write("1.  Enter the name of the individual for whom you want to generate a CV.")
     st.write("2.  Select up to five **CV generation models (Interns)** from the list:")
@@ -107,8 +117,8 @@ with st.expander("Click to read documentation", expanded=True):
         -   **Claude**: Anthropic model (`claude-3-7-sonnet-20250219`) with web search.
     """)
     st.write("3.  If you select more than one generation model, choose one or more **reasoning models (Editors)** to synthesize a reconciled CV:") 
-    st.write("    -   **Oscar** (OpenAI 'o3')") 
-    st.write("    -   **Graham** (Google 'gemini-2.5-pro-preview-05-06')") 
+    st.write("    -   **Graham** (Google - Powerful alternative for comparison. *Underlying model: 'gemini-2.5-pro-preview-05-06'.*)") 
+    st.write("    -   **Oscar** (OpenAI - Advanced reasoning model. *Underlying model: 'o3'. Ensure 'o3' is a valid model ID for your API key.*)") 
     st.write("4.  Click 'Generate CVs & Synthesize!' to start.") 
     st.write("5.  Review the generated CVs and the synthesized CV(s).")
 
@@ -153,13 +163,14 @@ if len(Intern_Select) > 1 and available_editor_models:
     default_editors = [] 
     if 'Graham' in available_editor_models: 
         default_editors.append('Graham')
-    elif 'Oscar' in available_editor_models: 
+    if 'Oscar' in available_editor_models: 
          default_editors.append('Oscar')
-    elif available_editor_models: 
+    
+    if not default_editors and available_editor_models: 
         default_editors.append(available_editor_models[0])
 
     Editor_Select = st.multiselect( 
-        "Which **reasoning models (Editors)** would you like to deploy for synthesis? (Select one or both if available)", 
+        "Which **reasoning models (Editors)** would you like to deploy for synthesis? (Select one or more if available)", 
         options=available_editor_models, 
         default=default_editors, 
         label_visibility="collapsed"
@@ -168,7 +179,8 @@ elif len(Intern_Select) <=1 and Intern_Select :
      st.info("Select more than one CV generation model to enable synthesis by an editor.") 
 
 input_text = st.text_input("Enter the full name of the individual for the CV (e.g., 'Dr. Jane Doe, CEO of Tech Innovations Inc.')")
-Customised_Prompt = generate_cv_prompt(input_text) 
+# Customised_Prompt is now generated when the button is clicked, to get the latest date
+# Customised_Prompt = generate_cv_prompt(input_text) 
 
 if st.button("Generate CVs & Synthesize! :rocket:"): 
     if not input_text.strip():
@@ -179,6 +191,8 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
         st.error("Please select at least one editor model when synthesizing multiple CVs.") 
     else:
         key_phrase = input_text
+        # Generate the prompt here to get the current date at the time of execution
+        Customised_Prompt = generate_cv_prompt(input_text)
         st.divider()
         
         total_steps = len(Intern_Select) + (len(Editor_Select) if len(Intern_Select) > 1 and Editor_Select else 0) 
@@ -223,12 +237,11 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                         
                         if processed_citations:
                             sources_list = []
-                            for i, c_url in enumerate(processed_citations): # Iterate with index for numbering
+                            for c_url in processed_citations: 
                                 if isinstance(c_url, str) and c_url.strip():
-                                    # Numbered list of URLs
-                                    sources_list.append(f"{i+1}. [{c_url}]({c_url})")
+                                    sources_list.append(f"- [{c_url}]({c_url})") 
                             if sources_list:
-                                sources_text = "Sources (Note: Numbers below may not directly map to inline citations like [1], [2] in the text above for this model):\n" + "\n".join(list(set(sources_list)))
+                                sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
 
                     elif model_details['type'] == 'google_client_grounding':
