@@ -12,47 +12,45 @@ from google.genai.types import Tool, GenerationConfig, GoogleSearch, GenerateCon
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- PAGE CONFIGURATION (MUST BE THE FIRST STREAMLIT COMMAND) ---
-st.set_page_config(page_title="CV Generator Pro", page_icon=":briefcase:")
+st.set_page_config(page_title="Sherwood Generator", page_icon=":robot_face:") # Updated
 
-# --- CONFIGURATION & API KEY STATUS ---
-st.sidebar.header("API Key Status")
-api_keys_configured = True
-
+# --- CONFIGURATION ---
 PERPLEXITY_API_KEY = os.environ.get('PERPLEXITY_API_KEY')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
+
+initial_api_keys_found_on_load = any([PERPLEXITY_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY])
+
+
+st.sidebar.header("API Key Status")
+
 if PERPLEXITY_API_KEY:
     st.sidebar.success("Perplexity API Key: Found")
 else:
     st.sidebar.warning("Perplexity API Key (PERPLEXITY_API_KEY): **Missing** - Sonar & Deepseek unavailable.")
-    api_keys_configured = False
 
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 if OPENAI_API_KEY:
     st.sidebar.success("OpenAI API Key: Found")
 else:
     st.sidebar.warning("OpenAI API Key (OPENAI_API_KEY): **Missing** - Optima & Oscar unavailable.")
-    api_keys_configured = False
 
-GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 if GOOGLE_API_KEY:
     st.sidebar.success("Google API Key: Found")
 else:
     st.sidebar.warning("Google API Key (GOOGLE_API_KEY): **Missing** - Gemini & Graham unavailable.")
-    api_keys_configured = False
 
-ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 if ANTHROPIC_API_KEY:
     st.sidebar.success("Anthropic API Key: Found")
 else:
     st.sidebar.warning("Anthropic API Key (ANTHROPIC_API_KEY): **Missing** - Claude unavailable.")
-    api_keys_configured = False
 
-if not api_keys_configured and not initial_api_keys_found: # Show general welcome only if it's the very first run with no keys
+if not initial_api_keys_found_on_load: 
      st.info(
-        "Welcome to CV Generator Pro! Please set up API keys (see status in sidebar) to enable models."
+        "Welcome to Sherwood Generator! Please set up API keys (see status in sidebar) to enable models."
     )
 
 
-# Set up Telegram Bot
 RECIPIENT_USER_ID = os.environ.get('RECIPIENT_USER_ID')
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 bot = None
@@ -62,10 +60,9 @@ if BOT_TOKEN and RECIPIENT_USER_ID:
     except Exception as e:
         st.error(f"Failed to initialize Telegram Bot: {e}")
 else:
-    if GOOGLE_API_KEY or OPENAI_API_KEY or PERPLEXITY_API_KEY or ANTHROPIC_API_KEY : # Only warn if some keys are present
+    if initial_api_keys_found_on_load : 
         st.sidebar.warning("Telegram Bot token or Recipient User ID not found. Notifications will be disabled.")
 
-# Initialize API Clients
 client_perplexity = None
 if PERPLEXITY_API_KEY:
     client_perplexity = OpenAI(api_key=PERPLEXITY_API_KEY, base_url="https://api.perplexity.ai")
@@ -130,8 +127,8 @@ This format is designed to provide a clear and detailed overview of an individua
     return prompt
 
 # --- STREAMLIT UI ---
-st.write("## **CV Generator Pro** :briefcase:")
-with st.expander("Click to read documentation", expanded=False): # Default to collapsed
+st.write("## **Sherwood Generator** :robot_face:") # Updated App Title
+with st.expander("Click to read documentation", expanded=False): 
     st.write("This tool generates draft CVs using various Large Language Models (LLMs).")
     st.write("1.  Enter the name of the individual for whom you want to generate a CV.")
     st.write("2.  Select up to five **CV generation models (Interns)** from the list:")
@@ -163,28 +160,30 @@ EDITOR_MODELS_OPTIONS = {
 available_generation_models = [name for name, details in GENERATION_MODELS_OPTIONS.items() if details['client']]
 available_editor_models = [name for name, details in EDITOR_MODELS_OPTIONS.items() if details['client']] 
 
-if not available_generation_models:
+if not available_generation_models and initial_api_keys_found_on_load: 
     st.error("No CV generation models are available. Please check API key configurations in the sidebar.")
-if not available_editor_models: 
+if not available_editor_models and initial_api_keys_found_on_load: 
     st.error("No Editor models are available. Please check API key configurations in the sidebar.")
 
 st.subheader("Select CV Generation Models (Interns)")
-for model_name in GENERATION_MODELS_OPTIONS:
+for model_name in GENERATION_MODELS_OPTIONS: 
+    description = GENERATION_MODELS_OPTIONS[model_name]['description']
     if model_name in available_generation_models:
-        st.caption(f"**{model_name}**: {GENERATION_MODELS_OPTIONS[model_name]['description']}")
+        st.caption(f"**{model_name}**: {description}")
     else:
-        st.caption(f"**{model_name}**: *Unavailable (API key missing)*")
+        st.caption(f"**{model_name}**: *Unavailable (API key missing)* - {description}")
+
 
 Intern_Select = st.multiselect(
     "Which **CV generation models** would you like to deploy? (Select up to 5)",
-    options=available_generation_models,
+    options=available_generation_models, 
     default=available_generation_models, 
     max_selections=5,
     label_visibility="collapsed" 
 )
 
 Editor_Select = None 
-if len(Intern_Select) > 1:
+if len(Intern_Select) > 1 : 
     if available_editor_models:
         st.subheader("Select Reasoning Models for Synthesis (Editors)") 
         default_editors = [] 
@@ -202,8 +201,8 @@ if len(Intern_Select) > 1:
             default=default_editors, 
             label_visibility="collapsed"
         )
-    else:
-        st.warning("No Editor models available. Synthesis will be skipped if multiple interns are selected.")
+    else: 
+        st.warning("Multiple interns selected, but no Editor models are available due to missing API keys. Synthesis will be skipped.")
 elif len(Intern_Select) == 1 and Intern_Select : 
      st.info("Only one CV generation model selected. Synthesis by an editor will be skipped.") 
 
@@ -213,14 +212,16 @@ input_text = st.text_input("Enter the full name of the individual for the CV (e.
 # Determine if the button should be disabled
 disable_button = not input_text.strip() or \
                  not Intern_Select or \
-                 (len(Intern_Select) > 1 and not Editor_Select and available_editor_models) # Disable if >1 intern and no editor selected AND editors are available
+                 (len(Intern_Select) > 1 and not Editor_Select and available_editor_models)
 
-if st.button("Generate CVs & Synthesize! :rocket:", disabled=disable_button): 
-    if not input_text.strip(): # This check is now redundant due to disable_button but kept for safety
+button_label = "Generate CVs & Synthesize! :rocket:" if len(Intern_Select) > 1 and Editor_Select else "Generate CV(s)! :rocket:"
+
+if st.button(button_label, disabled=disable_button): 
+    if not input_text.strip(): 
         st.error("Please enter the name of the individual.")
-    elif not Intern_Select: # Also redundant
+    elif not Intern_Select: 
         st.error("Please select at least one CV generation model.")
-    elif len(Intern_Select) > 1 and not Editor_Select: 
+    elif len(Intern_Select) > 1 and not Editor_Select and available_editor_models: 
         st.error("Please select at least one editor model when synthesizing multiple CVs.") 
     else:
         key_phrase = input_text
@@ -237,10 +238,10 @@ if st.button("Generate CVs & Synthesize! :rocket:", disabled=disable_button):
         combined_output_for_copying = ""
         generated_cv_data = {}
         
-        st.header("Draft CVs from Interns") # Clearer section header
+        st.header("Draft CVs from Interns") 
 
         for intern_name in Intern_Select:
-            st.divider() # Divider before each intern's output
+            st.divider() 
             model_details = GENERATION_MODELS_OPTIONS[intern_name]
             if not model_details['client']:
                 st.warning(f"{intern_name} is unavailable (client not configured). Skipping.")
@@ -250,8 +251,8 @@ if st.button("Generate CVs & Synthesize! :rocket:", disabled=disable_button):
                 continue
 
             st.subheader(f"Generating CV with {intern_name}") 
-            output_text = "Error: No output generated."
-            sources_text = "Sources: Not applicable or not provided by the model for this output." 
+            output_text = f"Model {intern_name} did not return a text response." 
+            sources_text = "Sources: Not applicable or not provided by this model." 
             start_time = time.time()
 
             try:
@@ -263,7 +264,8 @@ if st.button("Generate CVs & Synthesize! :rocket:", disabled=disable_button):
                             temperature=0.5,
                             web_search_options={"search_context_size": "high"} 
                         )
-                        output_text = response.choices[0].message.content
+                        if response.choices[0].message.content:
+                            output_text = response.choices[0].message.content
                         
                         processed_citations = []
                         if hasattr(response, 'citations') and response.citations:
@@ -277,7 +279,7 @@ if st.button("Generate CVs & Synthesize! :rocket:", disabled=disable_button):
                                 if isinstance(c_url, str) and c_url.strip():
                                     sources_list.append(f"- [{c_url}]({c_url})") 
                             if sources_list:
-                                sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
+                                sources_text = "Sources (Note: The numbering of these URLs corresponds to the order they were provided by the API and may not directly match the inline citation numbers like [1], [2] inserted by the model in the text above):\n" + "\n".join(list(set(sources_list)))
                         else:
                             sources_text = st.caption("No citable sources were provided by this model for this output.")
 
@@ -295,7 +297,8 @@ if st.button("Generate CVs & Synthesize! :rocket:", disabled=disable_button):
                             contents=Customised_Prompt,
                             config=content_config_obj 
                         )
-                        output_text = response.text
+                        if response.text:
+                            output_text = response.text
                         if response.candidates and response.candidates[0].grounding_metadata:
                             gm = response.candidates[0].grounding_metadata
                             sources_list = []
@@ -321,7 +324,8 @@ if st.button("Generate CVs & Synthesize! :rocket:", disabled=disable_button):
                             }],
                             tool_choice={"type": "web_search_preview"} 
                         )
-                        output_text = response.output_text
+                        if response.output_text:
+                            output_text = response.output_text
                         
                         openai_sources_list = []
                         raw_response_for_debug_str = "" 
@@ -356,7 +360,7 @@ if st.button("Generate CVs & Synthesize! :rocket:", disabled=disable_button):
                         else:
                             sources_text = st.caption("Sources (OpenAI Optima): Web search was enabled, but the tool does not appear to have been used or no citable annotations were returned.")
                             if raw_response_for_debug_str: 
-                                 sources_text += f"\n\n*Debug: OpenAI `response` object structure:*\n```json\n{raw_response_for_debug_str}\n```"
+                                 sources_text = str(sources_text) + f"\n\n*Debug: OpenAI `response` object structure:*\n```json\n{raw_response_for_debug_str}\n```"
 
 
                     elif model_details['type'] == 'anthropic_websearch':
@@ -393,8 +397,10 @@ if st.button("Generate CVs & Synthesize! :rocket:", disabled=disable_button):
                                         for citation in content_block.citations:
                                             if hasattr(citation, 'url') and hasattr(citation, 'title') and citation.url and citation.title:
                                                 sources_list.append(f"- [{citation.title}]({citation.url})")
-                        output_text = parsed_output_text.strip()
-                        if not output_text and response.stop_reason == 'tool_use':
+                        if parsed_output_text.strip():
+                            output_text = parsed_output_text.strip()
+                        
+                        if not output_text and response.stop_reason == 'tool_use' and not parsed_output_text.strip(): 
                             output_text = "Model used web search, but did not provide a direct text response in the first part. This might indicate a multi-step process is expected."
 
                         if sources_list:
@@ -405,14 +411,13 @@ if st.button("Generate CVs & Synthesize! :rocket:", disabled=disable_button):
 
                     end_time = time.time()
                     
-                    # st.markdown(f"### Draft CV from {intern_name}") # Moved subheader up
                     with st.expander(f"View/Copy CV from **{intern_name}** for **{key_phrase}**", expanded=True):
                         st.markdown(output_text)
                         st.markdown("---")
-                        if isinstance(sources_text, str): # Check if sources_text is a string before markdown
+                        if isinstance(sources_text, str): 
                             st.markdown(sources_text) 
-                        else: # If it's a Streamlit caption object, just display it
-                            sources_text # This will render the st.caption object
+                        else: 
+                            sources_text 
                         st.markdown("---")
                         st.write(f"*Time to generate: {round(end_time - start_time, 2)} seconds*")
                         st.write("*Click* :clipboard: *to copy this CV and its sources to clipboard*")
@@ -448,7 +453,7 @@ if st.button("Generate CVs & Synthesize! :rocket:", disabled=disable_button):
                         )
                         output_text = response.choices[0].message.content
                         sources_text = "Sources: (Fallback to standard chat) Information likely integrated from training data."
-                        st.markdown(f"### Draft CV from {intern_name} (Fallback to Chat)")
+                        # st.markdown(f"### Draft CV from {intern_name} (Fallback to Chat)") # Already have a subheader
                         with st.expander(f"View/Copy CV from **{intern_name}** for **{key_phrase}** (Fallback)", expanded=True):
                             st.markdown(output_text)
                             st.markdown("---")
