@@ -1,35 +1,32 @@
 import streamlit as st
 import os
 import time
-import telebot # For Telegram notifications
-import json # For formatting debug output
-from datetime import datetime # For dynamic date in prompts
-import pytz # For timezone handling (Singapore time)
-from google import genai # For Google Gemini API (user-specified import style)
-from openai import OpenAI # For OpenAI and Perplexity APIs
-from anthropic import Anthropic # For Anthropic Claude API
-# Import specific types from Google's library for configuration
+import telebot
+import json 
+from datetime import datetime 
+import pytz # Added for timezone handling
+from google import genai 
+from openai import OpenAI
+from anthropic import Anthropic
+# User-specified import for Google types
 from google.genai.types import Tool, GenerationConfig, GoogleSearch, GenerateContentConfig
-from st_copy_to_clipboard import st_copy_to_clipboard # For copy-to-clipboard functionality
+# HarmCategory and HarmBlockThreshold are no longer needed if safety_settings are not used in GenerateContentConfig
+from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- PAGE CONFIGURATION (MUST BE THE FIRST STREAMLIT COMMAND) ---
 st.set_page_config(page_title="CV Generator Pro", page_icon=":robot_face:")
 
-# --- GLOBAL CONFIGURATION & API KEY STATUS ---
-
-# Retrieve API keys from environment variables
+# --- CONFIGURATION ---
 PERPLEXITY_API_KEY = os.environ.get('PERPLEXITY_API_KEY')
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 
-# --- Initial API Key Guidance & Sidebar Status ---
-# Flag to check if any API key was found on load, to tailor the welcome message.
 initial_api_keys_found_on_load = any([PERPLEXITY_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY])
 
-st.sidebar.header("API Key Status") # Section in sidebar for API key feedback
 
-# Check and display status for each API key
+st.sidebar.header("API Key Status")
+
 if PERPLEXITY_API_KEY:
     st.sidebar.success("Perplexity API Key: Found")
 else:
@@ -50,39 +47,35 @@ if ANTHROPIC_API_KEY:
 else:
     st.sidebar.warning("Anthropic API Key (ANTHROPIC_API_KEY): **Missing** - Claude unavailable.")
 
-# Show a general welcome/setup message only if no keys are set on the very first interaction.
 if not initial_api_keys_found_on_load: 
      st.info(
         "Welcome to CV Generator Pro! Please set up API keys (see status in sidebar) to enable models."
     )
 
-# Set up Telegram Bot for notifications
+
 RECIPIENT_USER_ID = os.environ.get('RECIPIENT_USER_ID')
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
-bot = None # Initialize bot as None
+bot = None
 if BOT_TOKEN and RECIPIENT_USER_ID:
     try:
         bot = telebot.TeleBot(BOT_TOKEN)
     except Exception as e:
         st.error(f"Failed to initialize Telegram Bot: {e}")
 else:
-    # Only warn about Telegram if some API keys are present (user might expect notifications)
     if initial_api_keys_found_on_load : 
         st.sidebar.warning("Telegram Bot token or Recipient User ID not found. Notifications will be disabled.")
 
-# --- Initialize API Clients ---
 client_perplexity = None
 if PERPLEXITY_API_KEY:
     client_perplexity = OpenAI(api_key=PERPLEXITY_API_KEY, base_url="https://api.perplexity.ai")
 
 client_openai = None
 if OPENAI_API_KEY:
-    client_openai = OpenAI() # Standard OpenAI client
+    client_openai = OpenAI()
 
 client_google_sdk = None 
 if GOOGLE_API_KEY:
     try:
-        # Initialize Google Gemini client using genai.Client() as per user's working example
         client_google_sdk = genai.Client(api_key=GOOGLE_API_KEY) 
     except Exception as e:
         st.error(f"Failed to initialize Google Gemini Client: {e}")
@@ -91,32 +84,25 @@ client_anthropic = None
 if ANTHROPIC_API_KEY:
     client_anthropic = Anthropic(api_key=ANTHROPIC_API_KEY)
 
-# --- Model Configuration Parameters ---
-# Base generation parameters for Google Gemini models
 base_generation_config_params = {
     "candidate_count": 1,
-    "temperature": 0.5, # Standard temperature for creative generation
+    "temperature": 0.5,
 }
-# Base parameters for Editor/Reviewer models (Google Gemini)
 base_editor_generation_config_params = { 
     "candidate_count": 1,
-    "temperature": 0.3, # Lower temperature for more factual/consistent synthesis
+    "temperature": 0.3, 
 }
 
-# --- Utility Functions ---
 def get_current_sg_date_str():
-    """Gets the current date in Singapore time, formatted as 'Month Day, Year'."""
-    utc_now = datetime.utcnow().replace(tzinfo=pytz.utc) # Get current UTC time
-    sg_timezone = pytz.timezone('Asia/Singapore') # Define Singapore timezone
-    sg_now = utc_now.astimezone(sg_timezone) # Convert to Singapore time
-    return sg_now.strftime("%B %d, %Y") # Format the date string
+    """Gets the current date in Singapore time, formatted."""
+    utc_now = datetime.utcnow().replace(tzinfo=pytz.utc)
+    sg_timezone = pytz.timezone('Asia/Singapore')
+    sg_now = utc_now.astimezone(sg_timezone)
+    return sg_now.strftime("%B %d, %Y")
 
 def generate_cv_prompt(individual):
-    """
-    Generates the structured prompt for CV creation.
-    Includes dynamic current date (Singapore time) for age calculation instruction.
-    """
-    current_sg_date_str = get_current_sg_date_str() # Get current date for the prompt
+    """Generates the prompt for CV creation with the current date in Singapore time."""
+    current_sg_date_str = get_current_sg_date_str()
     
     prompt = f"""###Instruction###
 Create a comprehensive biography of {individual} detailing the personal background, education, career progression, and other significant appointments or achievements. The biography should be structured as follows:
@@ -143,9 +129,7 @@ This format is designed to provide a clear and detailed overview of an individua
     return prompt
 
 # --- STREAMLIT UI ---
-st.write("## **CV Generator Pro** :robot_face:") # Main application title
-
-# Documentation expander
+st.write("## **CV Generator Pro** :robot_face:") 
 with st.expander("Click to read documentation", expanded=False): 
     st.write("This tool generates draft CVs using various Large Language Models (LLMs).")
     st.write("1.  Enter the name of the individual for whom you want to generate a CV.")
@@ -163,7 +147,6 @@ with st.expander("Click to read documentation", expanded=False):
     st.write("4.  Click 'Generate CVs & Synthesize!' to start.") 
     st.write("5.  Review the generated CVs and the synthesized CV(s).")
 
-# --- Model Definitions and Availability ---
 GENERATION_MODELS_OPTIONS = {
     'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity', 'description': "Perplexity model, good for broad research. Search context: high."},
     'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity', 'description': "Perplexity model, focused on reasoning. Search context: high."},
@@ -172,50 +155,50 @@ GENERATION_MODELS_OPTIONS = {
     'Claude': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch', 'description': "Anthropic model with web search capabilities."}
 }
 EDITOR_MODELS_OPTIONS = { 
-    'Graham': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-preview-05-06', 'type': 'google_client'}, # Swapped order as per user request
+    'Graham': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-preview-05-06', 'type': 'google_client'},
     'Oscar': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'}
 }
 
-# Filter models based on whether their API client was successfully initialized
 available_generation_models = [name for name, details in GENERATION_MODELS_OPTIONS.items() if details['client']]
 available_editor_models = [name for name, details in EDITOR_MODELS_OPTIONS.items() if details['client']] 
 
-# Display errors if no models of a certain type are available (and some keys were expected)
 if not available_generation_models and initial_api_keys_found_on_load: 
     st.error("No CV generation models are available. Please check API key configurations in the sidebar.")
 if not available_editor_models and initial_api_keys_found_on_load: 
     st.error("No Editor models are available. Please check API key configurations in the sidebar.")
 
-# UI for selecting CV Generation Models (Interns)
 st.subheader("Select CV Generation Models (Interns)")
-for model_name in GENERATION_MODELS_OPTIONS: # Iterate over all defined models to show their status/description
+for model_name in GENERATION_MODELS_OPTIONS: 
     description = GENERATION_MODELS_OPTIONS[model_name]['description']
     if model_name in available_generation_models:
         st.caption(f"**{model_name}**: {description}")
     else:
         st.caption(f"**{model_name}**: *Unavailable (API key missing)* - {description}")
 
+# Updated default for Intern_Select: Exclude 'Claude' if present
+default_interns = [model for model in available_generation_models if model != 'Claude']
+if not default_interns and available_generation_models: # Fallback if excluding Claude leaves none
+    default_interns = available_generation_models[:1] # Default to the first available if any
+
 Intern_Select = st.multiselect(
     "Which **CV generation models** would you like to deploy? (Select up to 5)",
-    options=available_generation_models, # Only show available ones for actual selection
-    default=available_generation_models, # Default to all available interns
+    options=available_generation_models, 
+    default=default_interns, 
     max_selections=5,
-    label_visibility="collapsed" # Hides the main label as we have a subheader
+    label_visibility="collapsed" 
 )
 
-# UI for selecting Reasoning Models (Editors) - conditional display
 Editor_Select = None 
-if len(Intern_Select) > 1 : # Only show if more than one intern is selected
+if len(Intern_Select) > 1 : 
     if available_editor_models:
         st.subheader("Select Reasoning Models for Synthesis (Editors)") 
         default_editors = [] 
-        # Default to both Graham and Oscar if available
-        if 'Graham' in available_editor_models: 
-            default_editors.append('Graham')
+        # Updated default for Editor_Select: Prioritize Oscar, exclude Graham by default
         if 'Oscar' in available_editor_models: 
              default_editors.append('Oscar')
         
-        # If preferred defaults are not available, pick the first available editor
+        # If Oscar is not chosen/available, and other editors exist, default to the first one
+        # This implicitly excludes Graham unless it's the only one left and Oscar isn't picked.
         if not default_editors and available_editor_models: 
             default_editors.append(available_editor_models[0])
 
@@ -225,40 +208,35 @@ if len(Intern_Select) > 1 : # Only show if more than one intern is selected
             default=default_editors, 
             label_visibility="collapsed"
         )
-    else: # More than 1 intern selected, but no editors available
+    else: 
         st.warning("Multiple interns selected, but no Editor models are available due to missing API keys. Synthesis will be skipped.")
-elif len(Intern_Select) == 1 and Intern_Select : # If only one intern is selected
+elif len(Intern_Select) == 1 and Intern_Select : 
      st.info("Only one CV generation model selected. Synthesis by an editor will be skipped.") 
 
-# Input field for the individual's name
+
 input_text = st.text_input("Enter the full name of the individual for the CV (e.g., 'Dr. Jane Doe, CEO of Tech Innovations Inc.')")
 
-# --- Main Action Button & Processing Logic ---
-
-# Determine if the main action button should be disabled
+# Determine if the button should be disabled
 disable_button = not input_text.strip() or \
                  not Intern_Select or \
-                 (len(Intern_Select) > 1 and not Editor_Select and available_editor_models) # Disable if >1 intern, editors are available, but none selected
+                 (len(Intern_Select) > 1 and not Editor_Select and available_editor_models)
 
-# Dynamically set button label based on whether synthesis will occur
 button_label = "Generate CVs & Synthesize! :rocket:" if len(Intern_Select) > 1 and Editor_Select else "Generate CV(s)! :rocket:"
 
 if st.button(button_label, disabled=disable_button): 
-    # Re-check conditions for safety, though disable_button should handle most cases
     if not input_text.strip(): 
         st.error("Please enter the name of the individual.")
     elif not Intern_Select: 
         st.error("Please select at least one CV generation model.")
-    elif len(Intern_Select) > 1 and not Editor_Select and available_editor_models: # Check if editors were expected but not selected
+    elif len(Intern_Select) > 1 and not Editor_Select and available_editor_models: 
         st.error("Please select at least one editor model when synthesizing multiple CVs.") 
     else:
-        key_phrase = input_text # Used for titles and notifications
-        Customised_Prompt = generate_cv_prompt(input_text) # Generate prompt with current date
+        key_phrase = input_text
+        Customised_Prompt = generate_cv_prompt(input_text) 
         st.divider()
         
-        overall_start_time = time.time() # Start overall timer
+        overall_start_time = time.time() 
 
-        # Calculate total steps for the progress bar
         total_steps = len(Intern_Select) + (len(Editor_Select) if len(Intern_Select) > 1 and Editor_Select else 0) 
         progress_bar = None
         if total_steps > 0:
@@ -266,18 +244,14 @@ if st.button(button_label, disabled=disable_button):
             st.caption(f"Estimated steps: {total_steps}")
         current_step = 0
 
-        combined_output_for_copying = "" # Accumulates all intern outputs for a single copy action
-        generated_cv_data = {} # Stores text and sources for each intern, used by editors
+        combined_output_for_copying = ""
+        generated_cv_data = {}
         
-        st.header("Draft CVs from Interns") # Section header
+        st.header("Draft CVs from Interns") 
 
-        # --- Loop through selected CV Generation Models (Interns) ---
         for intern_name in Intern_Select:
-            st.divider() # Visual separation for each intern's output
+            st.divider() 
             model_details = GENERATION_MODELS_OPTIONS[intern_name]
-            
-            # This client check is mostly redundant if available_generation_models is used for options,
-            # but kept as a strong safeguard.
             if not model_details['client']:
                 st.warning(f"{intern_name} is unavailable (client not configured). Skipping.")
                 if progress_bar: 
@@ -285,14 +259,13 @@ if st.button(button_label, disabled=disable_button):
                     progress_bar.progress(current_step / total_steps)
                 continue
 
-            st.subheader(f"Generating CV with {intern_name}") # Subheader for current intern
-            output_text = f"Model {intern_name} did not return a text response." # Default if model returns empty
-            sources_text = "Sources: Not applicable or not provided by this model." # Default sources message
-            start_time_intern = time.time() # Timer for individual intern
+            st.subheader(f"Generating CV with {intern_name}") 
+            output_text = f"Model {intern_name} did not return a text response." 
+            sources_text = "Sources: Not applicable or not provided by this model." 
+            start_time_intern = time.time() 
 
             try:
                 with st.spinner(f"Asking {intern_name} to draft the CV... API calls can sometimes be slow."): 
-                    # --- Perplexity API Call (Sonar, Deepseek) ---
                     if model_details['type'] == 'perplexity':
                         response = model_details['client'].chat.completions.create(
                             model=model_details['model_id'],
@@ -300,48 +273,41 @@ if st.button(button_label, disabled=disable_button):
                             temperature=0.5,
                             web_search_options={"search_context_size": "high"} 
                         )
-                        if response.choices[0].message.content: # Check if content is not None
+                        if response.choices[0].message.content:
                             output_text = response.choices[0].message.content
                         
                         processed_citations = []
-                        # Try direct 'citations' attribute (might work with some library/API versions)
                         if hasattr(response, 'citations') and response.citations:
                             processed_citations = response.citations
-                        # Fallback for OpenAI library v1.x+ where extra fields might be in model_extra
                         elif hasattr(response, 'model_extra') and isinstance(response.model_extra, dict):
                             processed_citations = response.model_extra.get('citations', [])
                         
                         if processed_citations:
                             sources_list = []
-                            for c_url in processed_citations: # Perplexity returns a list of URL strings
+                            for c_url in processed_citations: 
                                 if isinstance(c_url, str) and c_url.strip():
-                                    sources_list.append(f"- [{c_url}]({c_url})") # Format as markdown link
+                                    sources_list.append(f"- [{c_url}]({c_url})") 
                             if sources_list:
                                 sources_text = "Sources (Note: The numbering of these URLs corresponds to the order they were provided by the API and may not directly match the inline citation numbers like [1], [2] inserted by the model in the text above):\n" + "\n".join(list(set(sources_list)))
                         else:
                             sources_text = st.caption("No citable sources were provided by this model for this output.")
 
 
-                    # --- Google Gemini API Call (Gemini model) ---
                     elif model_details['type'] == 'google_client_grounding':
-                        # Tool configuration for Google Search, using imported GoogleSearch type
                         google_search_tool_instance = Tool(google_search=GoogleSearch())
                         
-                        # Configuration for the generation request
                         content_config_obj = GenerateContentConfig(
                             tools=[google_search_tool_instance],
                             candidate_count=base_generation_config_params["candidate_count"],
                             temperature=base_generation_config_params["temperature"]
                         )
-                        # API call using genai.Client().models.generate_content()
                         response = model_details['client'].models.generate_content( 
-                            model=f"models/{model_details['model_id']}", # Model name needs 'models/' prefix
+                            model=f"models/{model_details['model_id']}", 
                             contents=Customised_Prompt,
                             config=content_config_obj 
                         )
-                        if response.text: # Check if text is not None
+                        if response.text:
                             output_text = response.text
-                        # Extract grounding metadata for sources
                         if response.candidates and response.candidates[0].grounding_metadata:
                             gm = response.candidates[0].grounding_metadata
                             sources_list = []
@@ -357,7 +323,6 @@ if st.button(button_label, disabled=disable_button):
                             sources_text = st.caption("No citable grounding sources were provided by this model for this output.")
 
 
-                    # --- OpenAI API Call (Optima model using Responses API) ---
                     elif model_details['type'] == 'openai_responses_websearch':
                         response = model_details['client'].responses.create(
                             model=model_details['model_id'], 
@@ -366,28 +331,26 @@ if st.button(button_label, disabled=disable_button):
                                 "type": "web_search_preview",
                                 "search_context_size": "high" 
                             }],
-                            tool_choice={"type": "web_search_preview"} # Force tool usage
+                            tool_choice={"type": "web_search_preview"} 
                         )
-                        if response.output_text: # Check if output_text is not None
+                        if response.output_text:
                             output_text = response.output_text
                         
                         openai_sources_list = []
-                        raw_response_for_debug_str = "" # For debugging the full response structure
+                        raw_response_for_debug_str = "" 
 
-                        # Attempt to serialize the whole response for debugging
                         try:
                             if hasattr(response, 'model_dump_json'):
                                 raw_response_for_debug_str = response.model_dump_json(indent=2)
                             else:
                                 raw_response_for_debug_str = str(response)
                         except Exception:
-                                raw_response_for_debug_str = str(response) # Fallback to simple string conversion
+                                raw_response_for_debug_str = str(response) 
 
-                        # Parse citations from response.output as per OpenAI documentation
                         if hasattr(response, 'output') and response.output:
                             for item in response.output: 
                                 if hasattr(item, 'type') and item.type == "message" and \
-                                   hasattr(item, 'content') and item.content: # Check 'content' directly on 'item'
+                                   hasattr(item, 'content') and item.content: 
                                     for content_item in item.content: 
                                         if hasattr(content_item, 'type') and content_item.type == "output_text" and \
                                            hasattr(content_item, 'annotations') and content_item.annotations:
@@ -399,7 +362,7 @@ if st.button(button_label, disabled=disable_button):
                         
                         if openai_sources_list:
                             sources_text = "Sources (OpenAI Optima):\n" + "\n".join(list(set(openai_sources_list))) 
-                        elif any(hasattr(item, 'type') and item.type == "web_search_call" for item in (response.output or [])): # Check if search was called
+                        elif any(hasattr(item, 'type') and item.type == "web_search_call" for item in (response.output or [])):
                             sources_text = "Sources (OpenAI Optima): Web search tool was utilized. No specific citable annotations found in the response." 
                             if raw_response_for_debug_str: 
                                 sources_text += f"\n\n*Debug: OpenAI `response` object structure:*\n```json\n{raw_response_for_debug_str}\n```"
@@ -409,12 +372,10 @@ if st.button(button_label, disabled=disable_button):
                                  sources_text = str(sources_text) + f"\n\n*Debug: OpenAI `response` object structure:*\n```json\n{raw_response_for_debug_str}\n```"
 
 
-                    # --- Anthropic Claude API Call ---
                     elif model_details['type'] == 'anthropic_websearch':
                         system_prompt_content = ""
-                        user_message_content = Customised_Prompt # Default
+                        user_message_content = Customised_Prompt
 
-                        # Parse prompt for system and user messages
                         if "###Instruction###" in Customised_Prompt:
                             parts = Customised_Prompt.split("###Instruction###", 1)
                             main_instruction_and_rest = parts[1]
@@ -424,7 +385,7 @@ if st.button(button_label, disabled=disable_button):
                                 user_message_content = "###Information###" + instruction_parts[1]
                             else:
                                 system_prompt_content = main_instruction_and_rest.strip()
-                                user_message_content = "" # Or pass the remainder if structure dictates
+                                user_message_content = ""
 
                         anthropic_messages = [{"role": "user", "content": user_message_content}]
 
@@ -445,10 +406,9 @@ if st.button(button_label, disabled=disable_button):
                                         for citation in content_block.citations:
                                             if hasattr(citation, 'url') and hasattr(citation, 'title') and citation.url and citation.title:
                                                 sources_list.append(f"- [{citation.title}]({citation.url})")
-                        if parsed_output_text.strip(): # Update output_text only if something was parsed
+                        if parsed_output_text.strip():
                             output_text = parsed_output_text.strip()
                         
-                        # Handle cases where only tool_use might be the stop reason without immediate text
                         if not output_text and response.stop_reason == 'tool_use' and not parsed_output_text.strip(): 
                             output_text = "Model used web search, but did not provide a direct text response in the first part. This might indicate a multi-step process is expected."
 
@@ -460,55 +420,49 @@ if st.button(button_label, disabled=disable_button):
 
                     end_time_intern = time.time() 
                     
-                    # Display results for the current intern
                     with st.expander(f"View/Copy CV from **{intern_name}** for **{key_phrase}**", expanded=True):
                         st.markdown(output_text)
                         st.markdown("---")
-                        if isinstance(sources_text, str): # Check if sources_text is a string before rendering with markdown
+                        if isinstance(sources_text, str): 
                             st.markdown(sources_text) 
-                        else: # If it's a Streamlit caption object, just display it
+                        else: 
                             sources_text 
                         st.markdown("---")
                         st.write(f"*Time to generate: {round(end_time_intern - start_time_intern, 2)} seconds*")
                         st.write("*Click* :clipboard: *to copy this CV and its sources to clipboard*")
                         st_copy_to_clipboard(f"CV by {intern_name} for {key_phrase}:\n\n{output_text}\n\n{sources_text if isinstance(sources_text, str) else 'No sources provided.'}")
 
-                    # Store data for combined output and editor
                     cv_plus_sources = f"<answer_{intern_name}>\n(CV from **{intern_name}**)\n\n{output_text}\n\n{sources_text if isinstance(sources_text, str) else 'No sources provided.'}\n</answer_{intern_name}>\n\n"
                     combined_output_for_copying += cv_plus_sources
                     generated_cv_data[intern_name] = {'text': output_text, 'sources': sources_text if isinstance(sources_text, str) else "No sources provided."}
 
-                    # Send Telegram notification if bot is configured
                     if bot:
                         try:
                             bot.send_message(chat_id=RECIPIENT_USER_ID, text=f"CV Generator Pro:\n{intern_name} finished drafting CV for {key_phrase}")
                         except Exception as bot_e:
                             st.warning(f"Telegram notification failed for {intern_name}: {bot_e}")
-                    st.snow() # Visual success indicator
+                    st.snow()
 
-            # --- Error Handling for Interns ---
-            except openai.APIStatusError as e: # Specific error for OpenAI/Perplexity
-                st.error(f"OpenAI/Perplexity API Error with {intern_name}: {e.status_code} - {e.message}")
+            except openai.APIStatusError as e: 
+                st.error(f"OpenAI API Error with {intern_name}: {e.status_code} - {e.message}")
                 if e.status_code == 401:
-                     st.error("Please check your API key and organization if applicable.")
+                     st.error("Please check your OpenAI API key and organization if applicable.")
                 elif e.status_code == 429:
-                    st.error("Rate limit exceeded. Please try again later or check your usage limits.")
+                    st.error("OpenAI rate limit exceeded. Please try again later or check your usage limits.")
                 combined_output_for_copying += f"<answer_{intern_name}>\n\nError generating CV with {intern_name}: {e}\n\n</answer_{intern_name}>\n\n"
                 generated_cv_data[intern_name] = {'text': f"Error: {e}", 'sources': "N/A due to error."}
-            except AttributeError as ae: # Catch if .responses is not available on OpenAI client
+            except AttributeError as ae:
                 if "object has no attribute 'responses'" in str(ae).lower() and model_details['type'] == 'openai_responses_websearch':
                     st.error(f"An error occurred with {intern_name}: The OpenAI client does not have a '.responses' attribute. This might indicate an issue with the OpenAI library version or the specific client capabilities. Please check your OpenAI library installation and API access for the Responses API. Falling back to standard chat completion for this model.")
-                    # Fallback logic to chat.completions for Optima if .responses fails
                     try:
                         response = model_details['client'].chat.completions.create(
-                            model=model_details['model_id'], # Use the original model_id (e.g., gpt-4.1)
+                            model=model_details['model_id'],
                             messages=[{"role": "user", "content": Customised_Prompt}],
                             temperature=0.5
                         )
                         output_text = response.choices[0].message.content
                         sources_text = "Sources: (Fallback to standard chat) Information likely integrated from training data."
-                        # Re-display output after fallback
-                        # st.markdown(f"### Draft CV from {intern_name} (Fallback to Chat)") # Subheader already exists
+                        # st.markdown(f"### Draft CV from {intern_name} (Fallback to Chat)") 
                         with st.expander(f"View/Copy CV from **{intern_name}** for **{key_phrase}** (Fallback)", expanded=True):
                             st.markdown(output_text)
                             st.markdown("---")
@@ -521,7 +475,7 @@ if st.button(button_label, disabled=disable_button):
                         st.error(f"Fallback chat completion also failed for {intern_name}: {fallback_e}")
                         combined_output_for_copying += f"<answer_{intern_name}>\n\nError generating CV with {intern_name} (fallback failed): {fallback_e}\n\n</answer_{intern_name}>\n\n"
                         generated_cv_data[intern_name] = {'text': f"Error (fallback failed): {fallback_e}", 'sources': "N/A due to error."}
-                else: # Re-raise other AttributeErrors not related to .responses
+                else:
                     st.error(f"An AttributeError occurred with {intern_name}: {ae}")
                     combined_output_for_copying += f"<answer_{intern_name}>\n\nError generating CV with {intern_name}: {ae}\n\n</answer_{intern_name}>\n\n"
                     generated_cv_data[intern_name] = {'text': f"Error: {ae}", 'sources': "N/A due to error."}
@@ -532,12 +486,11 @@ if st.button(button_label, disabled=disable_button):
                 combined_output_for_copying += f"<answer_{intern_name}>\n\nError generating CV with {intern_name}: {e}\n\n</answer_{intern_name}>\n\n"
                 generated_cv_data[intern_name] = {'text': f"Error: {e}", 'sources': "N/A due to error."}
             
-            if progress_bar: # Update progress bar after each intern
+            if progress_bar:
                 current_step += 1
                 progress_bar.progress(current_step / total_steps)
 
 
-        # --- Display Combined Output for Copying ---
         if combined_output_for_copying:
             st.divider()
             st.subheader("All Generated CV Drafts (for copying)") 
@@ -545,19 +498,17 @@ if st.button(button_label, disabled=disable_button):
             st_copy_to_clipboard(combined_output_for_copying)
             st.divider()
 
-        # --- Editor Synthesis Logic ---
         successfully_generated_cvs = {k: v for k, v in generated_cv_data.items() if not v['text'].startswith("Error:")}
 
         if len(successfully_generated_cvs) > 1 and Editor_Select: 
             st.markdown("---") 
-            st.header("Synthesized CV(s)") # Main header for synthesis section
-            current_sg_date_str_for_editor = get_current_sg_date_str() # Get current date for editor prompt
+            st.header("Synthesized CV(s)") 
+            current_sg_date_str_for_editor = get_current_sg_date_str() 
 
-            for editor_name_selected in Editor_Select: # Loop through selected editors
+            for editor_name_selected in Editor_Select: 
                 st.subheader(f"Synthesized by {editor_name_selected}") 
                 editor_details = EDITOR_MODELS_OPTIONS[editor_name_selected] 
 
-                # Construct the synthesis prompt for the editor
                 synthesis_prompt_parts = [
                     f"You are an expert CV editor. Your task is to synthesize a single, comprehensive, and accurate CV for **{key_phrase}** based on the multiple draft CVs provided below.\n\n"
                     "Your goal is to produce a 'Refreshed CV' that is the best possible version, combining all valid information and resolving discrepancies where possible.\n\n"
@@ -606,7 +557,6 @@ if st.button(button_label, disabled=disable_button):
                             response = editor_details['client'].chat.completions.create( 
                                 model=editor_details['model_id'],
                                 messages=[{"role": "user", "content": final_synthesis_prompt}]
-                                # Temperature uses default for Oscar as per previous error
                             )
                             synthesized_cv_text = response.choices[0].message.content
 
@@ -636,7 +586,7 @@ if st.button(button_label, disabled=disable_button):
                                 bot.send_message(chat_id=RECIPIENT_USER_ID, text=f"CV Generator Pro:\n{editor_name_selected} finished synthesizing CV for {key_phrase}") 
                             except Exception as bot_e:
                                  st.warning(f"Telegram notification failed for {editor_name_selected}: {bot_e}") 
-                        st.balloons() # Visual success indicator for editor completion
+                        st.balloons()
 
                 except openai.APIStatusError as e: 
                     st.error(f"OpenAI API Error with {editor_name_selected}: {e.status_code} - {e.message}") 
@@ -647,7 +597,7 @@ if st.button(button_label, disabled=disable_button):
                 except Exception as e: 
                     st.error(f"An error occurred with {editor_name_selected} during synthesis: {e}") 
                 
-                if progress_bar: # Update progress bar after each editor
+                if progress_bar:
                     current_step += 1
                     progress_bar.progress(current_step / total_steps)
 
@@ -657,6 +607,6 @@ if st.button(button_label, disabled=disable_button):
         elif not combined_output_for_copying:
              st.error("No CVs were generated. Please check model selections and API keys.")
         
-        overall_end_time = time.time() # End overall timer
+        overall_end_time = time.time() 
         overall_duration = overall_end_time - overall_start_time
         st.success(f"🎉 All tasks completed! Total time: {round(overall_duration, 2)} seconds.")
