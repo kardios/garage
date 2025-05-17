@@ -3,7 +3,7 @@ import os
 import time
 import telebot
 import json 
-from datetime import datetime 
+from datetime import datetime # For dynamic date
 import pytz # Added for timezone handling
 from google import genai 
 from openai import OpenAI
@@ -95,10 +95,11 @@ base_editor_generation_config_params = {
 
 def get_current_sg_date_str():
     """Gets the current date in Singapore time, formatted."""
-    utc_now = datetime.utcnow().replace(tzinfo=pytz.utc)
-    sg_timezone = pytz.timezone('Asia/Singapore')
-    sg_now = utc_now.astimezone(sg_timezone)
-    return sg_now.strftime("%B %d, %Y")
+    # Get current time as timezone-aware UTC object
+    utc_now = datetime.now(pytz.utc) # Updated from datetime.utcnow().replace(tzinfo=pytz.utc)
+    sg_timezone = pytz.timezone('Asia/Singapore') # Define Singapore timezone
+    sg_now = utc_now.astimezone(sg_timezone) # Convert to Singapore time
+    return sg_now.strftime("%B %d, %Y") # Format the date string
 
 def generate_cv_prompt(individual):
     """Generates the prompt for CV creation with the current date in Singapore time."""
@@ -175,10 +176,9 @@ for model_name in GENERATION_MODELS_OPTIONS:
     else:
         st.caption(f"**{model_name}**: *Unavailable (API key missing)* - {description}")
 
-# Updated default for Intern_Select: Exclude 'Claude' if present
 default_interns = [model for model in available_generation_models if model != 'Claude']
-if not default_interns and available_generation_models: # Fallback if excluding Claude leaves none
-    default_interns = available_generation_models[:1] # Default to the first available if any
+if not default_interns and available_generation_models: 
+    default_interns = available_generation_models[:1] 
 
 Intern_Select = st.multiselect(
     "Which **CV generation models** would you like to deploy? (Select up to 5)",
@@ -193,12 +193,9 @@ if len(Intern_Select) > 1 :
     if available_editor_models:
         st.subheader("Select Reasoning Models for Synthesis (Editors)") 
         default_editors = [] 
-        # Updated default for Editor_Select: Prioritize Oscar, exclude Graham by default
         if 'Oscar' in available_editor_models: 
              default_editors.append('Oscar')
         
-        # If Oscar is not chosen/available, and other editors exist, default to the first one
-        # This implicitly excludes Graham unless it's the only one left and Oscar isn't picked.
         if not default_editors and available_editor_models: 
             default_editors.append(available_editor_models[0])
 
@@ -216,7 +213,6 @@ elif len(Intern_Select) == 1 and Intern_Select :
 
 input_text = st.text_input("Enter the full name of the individual for the CV (e.g., 'Dr. Jane Doe, CEO of Tech Innovations Inc.')")
 
-# Determine if the button should be disabled
 disable_button = not input_text.strip() or \
                  not Intern_Select or \
                  (len(Intern_Select) > 1 and not Editor_Select and available_editor_models)
