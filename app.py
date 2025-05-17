@@ -12,7 +12,7 @@ from google.genai.types import Tool, GenerationConfig, GoogleSearch, GenerateCon
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- PAGE CONFIGURATION (MUST BE THE FIRST STREAMLIT COMMAND) ---
-st.set_page_config(page_title="Sherwood Generator", page_icon=":robot_face:") # Updated
+st.set_page_config(page_title="Sherwood Generator", page_icon=":robot_face:")
 
 # --- CONFIGURATION ---
 PERPLEXITY_API_KEY = os.environ.get('PERPLEXITY_API_KEY')
@@ -127,7 +127,7 @@ This format is designed to provide a clear and detailed overview of an individua
     return prompt
 
 # --- STREAMLIT UI ---
-st.write("## **Sherwood Generator** :robot_face:") # Updated App Title
+st.write("## **Sherwood Generator** :robot_face:") 
 with st.expander("Click to read documentation", expanded=False): 
     st.write("This tool generates draft CVs using various Large Language Models (LLMs).")
     st.write("1.  Enter the name of the individual for whom you want to generate a CV.")
@@ -152,9 +152,9 @@ GENERATION_MODELS_OPTIONS = {
     'Optima': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch', 'description': "OpenAI model (gpt-4.1) with web search capabilities (via Responses API). Search context: high."},
     'Claude': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch', 'description': "Anthropic model with web search capabilities."}
 }
-EDITOR_MODELS_OPTIONS = { 
-    'Oscar': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'},
-    'Graham': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-preview-05-06', 'type': 'google_client'} 
+EDITOR_MODELS_OPTIONS = { # Swapped order
+    'Graham': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-preview-05-06', 'type': 'google_client'},
+    'Oscar': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'}
 }
 
 available_generation_models = [name for name, details in GENERATION_MODELS_OPTIONS.items() if details['client']]
@@ -187,6 +187,7 @@ if len(Intern_Select) > 1 :
     if available_editor_models:
         st.subheader("Select Reasoning Models for Synthesis (Editors)") 
         default_editors = [] 
+        # Updated default order for multiselect
         if 'Graham' in available_editor_models: 
             default_editors.append('Graham')
         if 'Oscar' in available_editor_models: 
@@ -453,7 +454,7 @@ if st.button(button_label, disabled=disable_button):
                         )
                         output_text = response.choices[0].message.content
                         sources_text = "Sources: (Fallback to standard chat) Information likely integrated from training data."
-                        # st.markdown(f"### Draft CV from {intern_name} (Fallback to Chat)") # Already have a subheader
+                        # st.markdown(f"### Draft CV from {intern_name} (Fallback to Chat)") 
                         with st.expander(f"View/Copy CV from **{intern_name}** for **{key_phrase}** (Fallback)", expanded=True):
                             st.markdown(output_text)
                             st.markdown("---")
