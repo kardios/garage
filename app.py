@@ -8,7 +8,9 @@ import pytz # Added for timezone handling
 from google import genai 
 from openai import OpenAI
 from anthropic import Anthropic
+# User-specified import for Google types
 from google.genai.types import Tool, GenerationConfig, GoogleSearch, GenerateContentConfig
+# HarmCategory and HarmBlockThreshold are no longer needed if safety_settings are not used in GenerateContentConfig
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- PAGE CONFIGURATION (MUST BE THE FIRST STREAMLIT COMMAND) ---
@@ -140,7 +142,7 @@ with st.expander("Click to read documentation", expanded=False):
         -   **Claude**: Anthropic model (`claude-3-7-sonnet-20250219`) with web search.
     """)
     st.write("3.  If you select more than one generation model, choose one or more **reasoning models (Editors)** to synthesize a reconciled CV:") 
-    st.write("    -   **Graham** (Google - Powerful alternative for comparison. *Underlying model: 'gemini-2.5-pro-preview-05-06'.*)") 
+    st.write("    -   **Graham** (Google - Powerful reasoning model. *Underlying model: 'gemini-2.5-pro-preview-05-06'.*)") 
     st.write("    -   **Oscar** (OpenAI - Advanced reasoning model. *Underlying model: 'o3'. Ensure 'o3' is a valid model ID for your API key.*)") 
     st.write("4.  Click 'Generate CVs & Synthesize!' to start.") 
     st.write("5.  Review the generated CVs and the synthesized CV(s).")
@@ -152,7 +154,7 @@ GENERATION_MODELS_OPTIONS = {
     'Optima': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch', 'description': "OpenAI model (gpt-4.1) with web search capabilities (via Responses API). Search context: high."},
     'Claude': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch', 'description': "Anthropic model with web search capabilities."}
 }
-EDITOR_MODELS_OPTIONS = { # Swapped order
+EDITOR_MODELS_OPTIONS = { 
     'Graham': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-preview-05-06', 'type': 'google_client'},
     'Oscar': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'}
 }
@@ -187,7 +189,6 @@ if len(Intern_Select) > 1 :
     if available_editor_models:
         st.subheader("Select Reasoning Models for Synthesis (Editors)") 
         default_editors = [] 
-        # Updated default order for multiselect
         if 'Graham' in available_editor_models: 
             default_editors.append('Graham')
         if 'Oscar' in available_editor_models: 
@@ -521,15 +522,17 @@ if st.button(button_label, disabled=disable_button):
                     "-   Combine information from all provided CVs to make the Refreshed CV as complete as possible.\n"
                     "-   If different CVs provide different information for the same field (e.g., different dates for a job, different university names for the same degree period), try to determine the most likely correct information. If multiple sources agree on one version, prefer that.\n"
                     "-   **Crucially, if you encounter conflicting information that cannot be definitively resolved, or if you make a choice between conflicting pieces of information, you MUST indicate this in the Refreshed CV.**\n"
-                    "    -   For example: \"*2018-2022: Chief Technology Officer, Innovate Corp. (Note: Discrepancy in end year; Sonar reported 2022, Deepseek reported 2023)*\"\n"
-                    "    -   Or: \"*Education: MSc in Advanced Computing (Source: Gemini) / Master of Science in Computer Engineering (Source: Optima) from Tech University, 2015-2017.*\"\n"
-                    "    -   Clearly state the source of conflicting information (e.g., 'Sonar stated X, while Claude stated Y').\n"
+                    "    -   When noting a discrepancy, **DO NOT mention the names of the AI models (e.g., Sonar, Gemini, Optima, Claude) that provided the conflicting information.** Instead, use general phrasing.\n" # Added instruction
+                    "    -   For example, instead of: \"*2018-2022: Chief Technology Officer, Innovate Corp. (Note: Discrepancy in end year; Sonar reported 2022, Deepseek reported 2023)*\"\n"
+                    "    -   Rephrase to: \"*2018-2022: Chief Technology Officer, Innovate Corp. (Note: Discrepancy in end year; initial drafts showed 2022 vs. 2023)*\"\n" # Updated example
+                    "    -   Or, instead of: \"*Education: MSc in Advanced Computing (Source: Gemini) / Master of Science in Computer Engineering (Source: Optima) from Tech University, 2015-2017.*\"\n"
+                    "    -   Rephrase to: \"*Education: MSc in Advanced Computing / Master of Science in Computer Engineering from Tech University, 2015-2017 (Note: Degree name varied across initial drafts).*\"\n" # Updated example
                     "-   Ensure dates, positions, and achievements are accurately represented based on the consensus or noted discrepancies.\n"
                     "-   If one CV provides more detail for a specific role or achievement, incorporate that richer detail.\n"
                     "-   Omit any redundant information if multiple CVs state the exact same fact.\n"
                     "-   The final output should be ONLY the complete 'Refreshed CV' with inline notes for discrepancies. Do not add any other commentary before or after the CV.\n\n"
                     f"The draft CVs were generated by the following models: {', '.join(successfully_generated_cvs.keys())}.\n"
-                    "The CVs are contained in the tags below. When noting a discrepancy, refer to the model by its name (e.g., **Sonar**, **Gemini**).\n\n"
+                    "The CVs are contained in the tags below. Your task is to synthesize them into one CV, rephrasing any discrepancy notes to be generic, without mentioning the source model names in the notes.\n\n" # Updated instruction
                     "Here are the draft CVs:\n\n"
                 ]
                 
