@@ -54,7 +54,7 @@ client_openai = None
 if OPENAI_API_KEY:
     client_openai = OpenAI()
 else:
-    st.warning("OpenAI API Key (OPENAI_API_KEY) not found. Optima and Oscar models will be unavailable. Please set the environment variable to use these models.")
+    st.warning("OpenAI API Key (OPENAI_API_KEY) not found. Omni and Oscar models will be unavailable. Please set the environment variable to use these models.") # Updated
 
 client_google_sdk = None # This will hold the genai.Client() instance
 if GOOGLE_API_KEY:
@@ -77,7 +77,7 @@ base_generation_config_params = {
     "candidate_count": 1,
     "temperature": 0.5,
 }
-base_editor_generation_config_params = { # Renamed for clarity, though value is same as reviewer
+base_editor_generation_config_params = { 
     "candidate_count": 1,
     "temperature": 0.3, 
 }
@@ -121,7 +121,7 @@ with st.expander("Click to read documentation", expanded=True):
         -   **Sonar**: Perplexity model, good for broad research. Search context size set to 'high'.
         -   **Deepseek**: Perplexity model, focused on reasoning. Search context size set to 'high'.
         -   **Gemini**: Google model with web grounding capabilities (`gemini-2.0-flash-001`).
-        -   **Optima**: OpenAI model with web search capabilities (`gpt-4.1`). Web search is enabled via the Responses API. Search context size set to 'high'.
+        -   **Omni**: OpenAI model with web search capabilities (`gpt-4o`). Web search is enabled via the Responses API. Search context size set to 'high'.
         -   **Claude**: Anthropic model with web search capabilities (`claude-3-7-sonnet-20250219`).
     """)
     st.write("3.  If you select more than one generation model, choose one or more **reasoning models (Editors)** to synthesize a reconciled CV and highlight discrepancies:") 
@@ -134,7 +134,7 @@ GENERATION_MODELS_OPTIONS = {
     'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity', 'description': "Perplexity model, good for broad research. Search context: high."},
     'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity', 'description': "Perplexity model, focused on reasoning. Search context: high."},
     'Gemini': {'client': client_google_sdk, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_client_grounding', 'description': "Google model with web grounding capabilities."},
-    'Optima': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch', 'description': "OpenAI model with web search capabilities (via Responses API). Search context: high."},
+    'Omni': {'client': client_openai, 'model_id': 'gpt-4o', 'type': 'openai_responses_websearch', 'description': "OpenAI model (gpt-4o) with web search capabilities (via Responses API). Search context: high."}, # Updated
     'Claude': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch', 'description': "Anthropic model with web search capabilities."}
 }
 
@@ -255,7 +255,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                                      sources_list.append(f"- [{title}]({url})")
                                 elif hasattr(c, 'title') and hasattr(c, 'url') and c.url: 
                                     sources_list.append(f"- [{c.title}]({c.url})")
-                                else: # Fallback for list of strings (as per user's full response)
+                                else: 
                                     if isinstance(c, str) and c.strip():
                                         sources_list.append(f"- [{c}]({c})") 
                             if sources_list:
@@ -289,7 +289,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
 
                     elif model_details['type'] == 'openai_responses_websearch':
                         response = model_details['client'].responses.create(
-                            model=model_details['model_id'],
+                            model=model_details['model_id'], # Now 'gpt-4o'
                             input=Customised_Prompt,
                             tools=[{
                                 "type": "web_search_preview",
@@ -299,20 +299,19 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                         output_text = response.output_text
                         
                         openai_sources_list = []
-                        raw_output_for_debug_str = "" # For storing debug string
+                        raw_output_for_debug_str = "" 
 
                         if hasattr(response, 'output') and response.output:
                             try:
-                                # Attempt to serialize for debugging, robustly
                                 serializable_output = []
                                 for item_obj in response.output:
                                     if hasattr(item_obj, 'model_dump'):
                                         serializable_output.append(item_obj.model_dump())
-                                    else: # Fallback for objects without model_dump
+                                    else: 
                                         serializable_output.append(str(item_obj))
                                 raw_output_for_debug_str = json.dumps(serializable_output, indent=2)
                             except Exception:
-                                raw_output_for_debug_str = str(response.output) # Fallback to string if JSON dump fails
+                                raw_output_for_debug_str = str(response.output) 
 
                             for item in response.output:
                                 if hasattr(item, 'type') and item.type == "message" and \
@@ -328,13 +327,13 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                                                     openai_sources_list.append(f"- [{annotation.title}]({annotation.url})")
                         
                         if openai_sources_list:
-                            sources_text = "Sources (OpenAI Optima):\n" + "\n".join(list(set(openai_sources_list)))
+                            sources_text = "Sources (OpenAI Omni):\n" + "\n".join(list(set(openai_sources_list))) # Updated
                         elif any(hasattr(item, 'type') and item.type == "web_search_call" for item in (response.output or [])):
-                            sources_text = "Sources (OpenAI Optima): Web search tool was utilized. No specific citable annotations found in the response."
+                            sources_text = "Sources (OpenAI Omni): Web search tool was utilized. No specific citable annotations found in the response." # Updated
                             if raw_output_for_debug_str:
                                 sources_text += f"\n\n*Debug: OpenAI `response.output` structure:*\n```json\n{raw_output_for_debug_str}\n```"
                         else:
-                            sources_text = "Sources (OpenAI Optima): Web search was enabled, but the tool does not appear to have been used or no citable annotations were returned."
+                            sources_text = "Sources (OpenAI Omni): Web search was enabled, but the tool does not appear to have been used or no citable annotations were returned." # Updated
                             if raw_output_for_debug_str:
                                  sources_text += f"\n\n*Debug: OpenAI `response.output` structure:*\n```json\n{raw_output_for_debug_str}\n```"
 
@@ -386,7 +385,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                     with st.expander(f"View/Copy CV from **{intern_name}** for **{key_phrase}**", expanded=True):
                         st.markdown(output_text)
                         st.markdown("---")
-                        st.markdown(sources_text) # This will now include the debug info for Optima if no citations found
+                        st.markdown(sources_text) 
                         st.markdown("---")
                         st.write(f"*Time to generate: {round(end_time - start_time, 2)} seconds*")
                         st.write("*Click* :clipboard: *to copy this CV and its sources to clipboard*")
