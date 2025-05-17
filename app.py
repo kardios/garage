@@ -12,7 +12,7 @@ from google.genai.types import Tool, GenerationConfig, GoogleSearch, GenerateCon
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- PAGE CONFIGURATION (MUST BE THE FIRST STREAMLIT COMMAND) ---
-st.set_page_config(page_title="CV Generator Pro", page_icon=":robot_face:") # Updated page_title
+st.set_page_config(page_title="Sherwood Generator", page_icon=":robot_face:")
 
 # --- CONFIGURATION ---
 PERPLEXITY_API_KEY = os.environ.get('PERPLEXITY_API_KEY')
@@ -47,7 +47,7 @@ else:
 
 if not initial_api_keys_found_on_load: 
      st.info(
-        "Welcome to CV Generator Pro! Please set up API keys (see status in sidebar) to enable models." # Updated App Name
+        "Welcome to Sherwood Generator! Please set up API keys (see status in sidebar) to enable models."
     )
 
 
@@ -127,7 +127,7 @@ This format is designed to provide a clear and detailed overview of an individua
     return prompt
 
 # --- STREAMLIT UI ---
-st.write("## **CV Generator Pro** :robot_face:") # Updated App Title
+st.write("## **Sherwood Generator** :robot_face:") 
 with st.expander("Click to read documentation", expanded=False): 
     st.write("This tool generates draft CVs using various Large Language Models (LLMs).")
     st.write("1.  Enter the name of the individual for whom you want to generate a CV.")
@@ -228,6 +228,8 @@ if st.button(button_label, disabled=disable_button):
         Customised_Prompt = generate_cv_prompt(input_text) 
         st.divider()
         
+        overall_start_time = time.time() # <--- START OVERALL TIMER
+
         total_steps = len(Intern_Select) + (len(Editor_Select) if len(Intern_Select) > 1 and Editor_Select else 0) 
         progress_bar = None
         if total_steps > 0:
@@ -253,7 +255,7 @@ if st.button(button_label, disabled=disable_button):
             st.subheader(f"Generating CV with {intern_name}") 
             output_text = f"Model {intern_name} did not return a text response." 
             sources_text = "Sources: Not applicable or not provided by this model." 
-            start_time = time.time()
+            start_time_intern = time.time() # Renamed to avoid conflict
 
             try:
                 with st.spinner(f"Asking {intern_name} to draft the CV... API calls can sometimes be slow."): 
@@ -409,7 +411,7 @@ if st.button(button_label, disabled=disable_button):
                             sources_text = st.caption("No citable sources were provided by this model for this output.")
 
 
-                    end_time = time.time()
+                    end_time_intern = time.time() # Renamed
                     
                     with st.expander(f"View/Copy CV from **{intern_name}** for **{key_phrase}**", expanded=True):
                         st.markdown(output_text)
@@ -417,9 +419,9 @@ if st.button(button_label, disabled=disable_button):
                         if isinstance(sources_text, str): 
                             st.markdown(sources_text) 
                         else: 
-                            sources_text 
+                            sources_text # Render caption object directly
                         st.markdown("---")
-                        st.write(f"*Time to generate: {round(end_time - start_time, 2)} seconds*")
+                        st.write(f"*Time to generate: {round(end_time_intern - start_time_intern, 2)} seconds*")
                         st.write("*Click* :clipboard: *to copy this CV and its sources to clipboard*")
                         st_copy_to_clipboard(f"CV by {intern_name} for {key_phrase}:\n\n{output_text}\n\n{sources_text if isinstance(sources_text, str) else 'No sources provided.'}")
 
@@ -541,7 +543,7 @@ if st.button(button_label, disabled=disable_button):
 
                 try:
                     with st.spinner(f"{editor_name_selected} is synthesizing the CV... This might take some time."): 
-                        start_time = time.time()
+                        start_time_editor = time.time() # Renamed
                         synthesized_cv_text = "Error: No synthesized CV generated."
 
                         if editor_details['type'] == 'openai_chat': 
@@ -563,12 +565,12 @@ if st.button(button_label, disabled=disable_button):
                             )
                             synthesized_cv_text = response.text
 
-                        end_time = time.time()
+                        end_time_editor = time.time() # Renamed
 
                         with st.expander(f"**{editor_name_selected}**'s Synthesized CV for **{key_phrase}**", expanded=True): 
                             st.markdown(synthesized_cv_text)
                             st.markdown("---")
-                            st.write(f"*Time to synthesize: {round(end_time - start_time, 2)} seconds*")
+                            st.write(f"*Time to synthesize: {round(end_time_editor - start_time_editor, 2)} seconds*")
                             st.write("*Click* :clipboard: *to copy synthesized CV to clipboard*")
                             st_copy_to_clipboard(synthesized_cv_text)
                         
@@ -597,3 +599,7 @@ if st.button(button_label, disabled=disable_button):
             st.info("One or fewer CVs were successfully generated, so no synthesis will be performed.")
         elif not combined_output_for_copying:
              st.error("No CVs were generated. Please check model selections and API keys.")
+        
+        overall_end_time = time.time() # <--- END OVERALL TIMER
+        overall_duration = overall_end_time - overall_start_time
+        st.success(f"🎉 All tasks completed! Total time: {round(overall_duration, 2)} seconds.")
