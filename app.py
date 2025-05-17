@@ -76,7 +76,7 @@ base_generation_config_params = {
     "candidate_count": 1,
     "temperature": 0.5,
 }
-base_reviewer_generation_config_params = {
+base_editor_generation_config_params = { # Renamed for clarity, though value is same as reviewer
     "candidate_count": 1,
     "temperature": 0.3, 
 }
@@ -115,15 +115,15 @@ st.write("## **CV Generator Pro** :briefcase:")
 with st.expander("Click to read documentation", expanded=True):
     st.write("This tool generates draft CVs using various Large Language Models (LLMs).")
     st.write("1.  Enter the name of the individual for whom you want to generate a CV.")
-    st.write("2.  Select up to five **CV generation models** from the list. These models are equipped with web search or grounding capabilities to fetch up-to-date information:")
+    st.write("2.  Select up to five **CV generation models (Interns)** from the list. These models are equipped with web search or grounding capabilities to fetch up-to-date information:")
     st.markdown("""
         -   **Sonar**: Perplexity model, good for broad research. Search context size set to 'high'.
         -   **Deepseek**: Perplexity model, focused on reasoning. Search context size set to 'high'.
         -   **Gemini**: Google model with web grounding capabilities (`gemini-2.0-flash-001`).
-        -   **Optima**: OpenAI model with web search capabilities (`gpt-4.1`). Web search is enabled via the Responses API; structured citations may not be as detailed as other models.
+        -   **Optima**: OpenAI model with web search capabilities (`gpt-4.1`). Web search is enabled via the Responses API. Search context size set to 'high'.
         -   **Claude**: Anthropic model with web search capabilities (`claude-3-7-sonnet-20250219`).
     """)
-    st.write("3.  If you select more than one generation model, choose one or more **reasoning models** to synthesize a reconciled CV and highlight discrepancies:")
+    st.write("3.  If you select more than one generation model, choose one or more **reasoning models (Editors)** to synthesize a reconciled CV and highlight discrepancies:") 
     st.write("    -   **Oscar** (OpenAI - Advanced reasoning model. *Underlying model: 'o3'. Ensure 'o3' is a valid model ID for your API key.*)") 
     st.write("    -   **Graham** (Google - Powerful alternative for comparison. *Underlying model: 'gemini-2.5-pro-preview-05-06'.*)") 
     st.write("4.  Click 'Generate CVs & Synthesize!' to start the process.") 
@@ -133,23 +133,23 @@ GENERATION_MODELS_OPTIONS = {
     'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity', 'description': "Perplexity model, good for broad research. Search context: high."},
     'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity', 'description': "Perplexity model, focused on reasoning. Search context: high."},
     'Gemini': {'client': client_google_sdk, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_client_grounding', 'description': "Google model with web grounding capabilities."},
-    'Optima': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch', 'description': "OpenAI model with web search capabilities (via Responses API)."},
+    'Optima': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch', 'description': "OpenAI model with web search capabilities (via Responses API). Search context: high."},
     'Claude': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch', 'description': "Anthropic model with web search capabilities."}
 }
 
-REVIEWER_MODELS_OPTIONS = { 
+EDITOR_MODELS_OPTIONS = { 
     'Oscar': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'},
     'Graham': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-preview-05-06', 'type': 'google_client'} 
 }
 
 # Filter out unavailable models based on API key presence
 available_generation_models = [name for name, details in GENERATION_MODELS_OPTIONS.items() if details['client']]
-available_reviewer_models = [name for name, details in REVIEWER_MODELS_OPTIONS.items() if details['client']]
+available_editor_models = [name for name, details in EDITOR_MODELS_OPTIONS.items() if details['client']] 
 
 if not available_generation_models:
     st.error("No CV generation models are available. Please check your API key configurations in environment variables.")
-if not available_reviewer_models:
-    st.error("No reviewer models are available. Please check your API key configurations in environment variables.")
+if not available_editor_models: 
+    st.error("No Editor models are available. Please check your API key configurations in environment variables.")
 
 # Displaying model descriptions before multiselect as direct captions are not supported in multiselect options
 st.subheader("Select CV Generation Models (Interns)")
@@ -168,25 +168,25 @@ Intern_Select = st.multiselect(
     label_visibility="collapsed" 
 )
 
-Reviewer_Select = None
-if len(Intern_Select) > 1 and available_reviewer_models:
-    st.subheader("Select Reasoning Models for Synthesis (Reviewers)")
-    default_reviewers = []
-    if 'Graham' in available_reviewer_models: 
-        default_reviewers.append('Graham')
-    elif 'Oscar' in available_reviewer_models: 
-         default_reviewers.append('Oscar')
-    elif available_reviewer_models: 
-        default_reviewers.append(available_reviewer_models[0])
+Editor_Select = None 
+if len(Intern_Select) > 1 and available_editor_models: 
+    st.subheader("Select Reasoning Models for Synthesis (Editors)") 
+    default_editors = [] 
+    if 'Graham' in available_editor_models: 
+        default_editors.append('Graham')
+    elif 'Oscar' in available_editor_models: 
+         default_editors.append('Oscar')
+    elif available_editor_models: 
+        default_editors.append(available_editor_models[0])
 
-    Reviewer_Select = st.multiselect( 
-        "Which **reasoning models** would you like to deploy for synthesis? (Select one or both if available)", 
-        options=available_reviewer_models,
-        default=default_reviewers,
+    Editor_Select = st.multiselect( 
+        "Which **reasoning models (Editors)** would you like to deploy for synthesis? (Select one or both if available)", 
+        options=available_editor_models, 
+        default=default_editors, 
         label_visibility="collapsed"
     )
 elif len(Intern_Select) <=1 and Intern_Select : 
-     st.info("Select more than one CV generation model to enable synthesis by a reviewer.")
+     st.info("Select more than one CV generation model to enable synthesis by an editor.") 
 
 
 input_text = st.text_input("Enter the full name of the individual for the CV (e.g., 'Dr. Jane Doe, CEO of Tech Innovations Inc.')")
@@ -198,13 +198,13 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
         st.error("Please enter the name of the individual.")
     elif not Intern_Select:
         st.error("Please select at least one CV generation model.")
-    elif len(Intern_Select) > 1 and not Reviewer_Select: 
-        st.error("Please select at least one reviewer model when synthesizing multiple CVs.")
+    elif len(Intern_Select) > 1 and not Editor_Select: 
+        st.error("Please select at least one editor model when synthesizing multiple CVs.") 
     else:
         key_phrase = input_text
         st.divider()
         
-        total_steps = len(Intern_Select) + (len(Reviewer_Select) if len(Intern_Select) > 1 and Reviewer_Select else 0)
+        total_steps = len(Intern_Select) + (len(Editor_Select) if len(Intern_Select) > 1 and Editor_Select else 0) 
         progress_bar = None
         if total_steps > 0:
             progress_bar = st.progress(0)
@@ -238,27 +238,26 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                         )
                         output_text = response.choices[0].message.content
                         
-                        # Corrected citation handling for Perplexity based on user-provided response structure
-                        # The 'citations' field is a top-level attribute containing a list of URL strings.
-                        if hasattr(response, 'citations') and response.citations and isinstance(response.citations, list):
-                            sources_list = []
-                            for citation_url in response.citations:
-                                if isinstance(citation_url, str) and citation_url.strip():
-                                    # Create a simple markdown link using the URL itself as text
-                                    sources_list.append(f"- [{citation_url}]({citation_url})") 
-                            if sources_list:
-                                sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
-                        # Fallback if 'citations' is not as expected or model_extra might contain it
+                        processed_citations = []
+                        if hasattr(response, 'citations') and response.citations:
+                            processed_citations = response.citations
                         elif hasattr(response, 'model_extra') and isinstance(response.model_extra, dict):
                             processed_citations = response.model_extra.get('citations', [])
-                            if processed_citations and isinstance(processed_citations, list):
-                                sources_list = []
-                                for c_url in processed_citations:
-                                     if isinstance(c_url, str) and c_url.strip():
-                                        sources_list.append(f"- [{c_url}]({c_url})")
-                                if sources_list:
-                                    sources_text = "Sources (from model_extra):\n" + "\n".join(list(set(sources_list)))
-
+                        
+                        if processed_citations:
+                            sources_list = []
+                            for c in processed_citations:
+                                if isinstance(c, dict):
+                                    title = c.get('title', 'N/A')
+                                    url = c.get('url', '#')
+                                    if url != '#': 
+                                     sources_list.append(f"- [{title}]({url})")
+                                elif hasattr(c, 'title') and hasattr(c, 'url') and c.url: 
+                                    sources_list.append(f"- [{c.title}]({c.url})")
+                                else: 
+                                    sources_list.append(f"- {str(c)}")
+                            if sources_list:
+                                sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
 
                     elif model_details['type'] == 'google_client_grounding':
                         google_search_tool_instance = Tool(google_search=GoogleSearch())
@@ -290,20 +289,32 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                         response = model_details['client'].responses.create(
                             model=model_details['model_id'],
                             input=Customised_Prompt,
-                            tools=[{"type": "web_search_preview"}]
+                            tools=[{
+                                "type": "web_search_preview",
+                                "search_context_size": "high" # Set to high for Optima
+                            }]
                         )
                         output_text = response.output_text
-
-                        found_search_call = False
+                        
+                        openai_sources_list = []
                         if hasattr(response, 'output') and response.output:
                             for item in response.output:
-                                if item.type == "web_search_call":
-                                    found_search_call = True
-                                    break
-                        if found_search_call:
-                             sources_text = "Sources: Web search tool was utilized by the model. Detailed citations might be available in the full API response structure."
+                                if item.type == "message" and hasattr(item, 'message') and item.message and \
+                                   hasattr(item.message, 'content') and item.message.content:
+                                    for content_item in item.message.content:
+                                        if hasattr(content_item, 'type') and content_item.type == "output_text" and \
+                                           hasattr(content_item, 'annotations') and content_item.annotations:
+                                            for annotation in content_item.annotations:
+                                                if hasattr(annotation, 'type') and annotation.type == "url_citation" and \
+                                                   hasattr(annotation, 'url') and annotation.url and \
+                                                   hasattr(annotation, 'title') and annotation.title:
+                                                    openai_sources_list.append(f"- [{annotation.title}]({annotation.url})")
+                        if openai_sources_list:
+                            sources_text = "Sources:\n" + "\n".join(list(set(openai_sources_list)))
+                        elif any(item.type == "web_search_call" for item in response.output if hasattr(item,'type')): 
+                             sources_text = "Sources: Web search tool was utilized. No specific citations found in annotations."
                         else:
-                            sources_text = "Sources: Web search enabled. Information likely integrated. For itemized citations, inspect the full API response."
+                            sources_text = "Sources: Web search enabled. Information likely integrated. No specific citations found."
 
 
                     elif model_details['type'] == 'anthropic_websearch':
@@ -427,12 +438,12 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
 
         successfully_generated_cvs = {k: v for k, v in generated_cv_data.items() if not v['text'].startswith("Error:")}
 
-        if len(successfully_generated_cvs) > 1 and Reviewer_Select: 
+        if len(successfully_generated_cvs) > 1 and Editor_Select: 
             st.markdown("---") 
             st.header("Synthesized CV(s)") 
-            for reviewer_name_selected in Reviewer_Select: 
-                st.subheader(f"Synthesized by {reviewer_name_selected}") 
-                reviewer_details = REVIEWER_MODELS_OPTIONS[reviewer_name_selected]
+            for editor_name_selected in Editor_Select: 
+                st.subheader(f"Synthesized by {editor_name_selected}") 
+                editor_details = EDITOR_MODELS_OPTIONS[editor_name_selected] 
 
                 synthesis_prompt_parts = [
                     f"You are an expert CV editor. Your task is to synthesize a single, comprehensive, and accurate CV for **{key_phrase}** based on the multiple draft CVs provided below.\n\n"
@@ -472,32 +483,32 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                 final_synthesis_prompt = "".join(synthesis_prompt_parts)
 
                 try:
-                    with st.spinner(f"{reviewer_name_selected} is synthesizing the CV... This might take some time."): 
+                    with st.spinner(f"{editor_name_selected} is synthesizing the CV... This might take some time."): 
                         start_time = time.time()
                         synthesized_cv_text = "Error: No synthesized CV generated."
 
-                        if reviewer_details['type'] == 'openai_chat':
-                            response = reviewer_details['client'].chat.completions.create(
-                                model=reviewer_details['model_id'],
+                        if editor_details['type'] == 'openai_chat': 
+                            response = editor_details['client'].chat.completions.create( 
+                                model=editor_details['model_id'],
                                 messages=[{"role": "user", "content": final_synthesis_prompt}]
                             )
                             synthesized_cv_text = response.choices[0].message.content
 
-                        elif reviewer_details['type'] == 'google_client':
-                            content_config_obj_reviewer = GenerateContentConfig(
-                                candidate_count=base_reviewer_generation_config_params["candidate_count"],
-                                temperature=base_reviewer_generation_config_params["temperature"]
+                        elif editor_details['type'] == 'google_client': 
+                            content_config_obj_editor = GenerateContentConfig( 
+                                candidate_count=base_editor_generation_config_params["candidate_count"],
+                                temperature=base_editor_generation_config_params["temperature"]
                             )
-                            response = reviewer_details['client'].models.generate_content(
-                                model=f"models/{reviewer_details['model_id']}",
+                            response = editor_details['client'].models.generate_content( 
+                                model=f"models/{editor_details['model_id']}",
                                 contents=final_synthesis_prompt,
-                                config=content_config_obj_reviewer
+                                config=content_config_obj_editor 
                             )
                             synthesized_cv_text = response.text
 
                         end_time = time.time()
 
-                        with st.expander(f"**{reviewer_name_selected}**'s Synthesized CV for **{key_phrase}**", expanded=True):
+                        with st.expander(f"**{editor_name_selected}**'s Synthesized CV for **{key_phrase}**", expanded=True): 
                             st.markdown(synthesized_cv_text)
                             st.markdown("---")
                             st.write(f"*Time to synthesize: {round(end_time - start_time, 2)} seconds*")
@@ -506,19 +517,19 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                         
                         if bot:
                             try:
-                                bot.send_message(chat_id=RECIPIENT_USER_ID, text=f"CV Generator Pro:\n{reviewer_name_selected} finished synthesizing CV for {key_phrase}")
+                                bot.send_message(chat_id=RECIPIENT_USER_ID, text=f"CV Generator Pro:\n{editor_name_selected} finished synthesizing CV for {key_phrase}") 
                             except Exception as bot_e:
-                                 st.warning(f"Telegram notification failed for {reviewer_name_selected}: {bot_e}")
+                                 st.warning(f"Telegram notification failed for {editor_name_selected}: {bot_e}") 
                         st.balloons()
 
                 except openai.APIStatusError as e: 
-                    st.error(f"OpenAI API Error with {reviewer_name_selected}: {e.status_code} - {e.message}")
+                    st.error(f"OpenAI API Error with {editor_name_selected}: {e.status_code} - {e.message}") 
                     if e.status_code == 401:
                         st.error("Please check your OpenAI API key and organization if applicable.")
                     elif e.status_code == 429:
                         st.error("OpenAI rate limit exceeded. Please try again later or check your usage limits.")
                 except Exception as e: 
-                    st.error(f"An error occurred with {reviewer_name_selected} during synthesis: {e}")
+                    st.error(f"An error occurred with {editor_name_selected} during synthesis: {e}") 
                 
                 if progress_bar:
                     current_step += 1
