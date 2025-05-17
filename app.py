@@ -2,27 +2,22 @@ import streamlit as st
 import os
 import time
 import telebot
-import json # Added for debugging output
-from google import genai # User-specified import
+import json 
+from google import genai 
 from openai import OpenAI
 from anthropic import Anthropic
-# User-specified import for Google types
 from google.genai.types import Tool, GenerationConfig, GoogleSearch, GenerateContentConfig
-# HarmCategory and HarmBlockThreshold are no longer needed if safety_settings are not used in GenerateContentConfig
 from st_copy_to_clipboard import st_copy_to_clipboard
 
 # --- PAGE CONFIGURATION (MUST BE THE FIRST STREAMLIT COMMAND) ---
 st.set_page_config(page_title="CV Generator Pro", page_icon=":briefcase:")
 
 # --- CONFIGURATION ---
-# Retrieve API keys from environment variables
 PERPLEXITY_API_KEY = os.environ.get('PERPLEXITY_API_KEY')
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 
-# --- Initial API Key Guidance ---
-# Check if at least one generation model API key is available
 initial_api_keys_found = any([PERPLEXITY_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY])
 if not initial_api_keys_found:
     st.info(
@@ -31,7 +26,6 @@ if not initial_api_keys_found:
         "All models are currently unavailable until their respective keys are configured."
     )
 
-# Set up Telegram Bot
 RECIPIENT_USER_ID = os.environ.get('RECIPIENT_USER_ID')
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 bot = None
@@ -43,36 +37,33 @@ if BOT_TOKEN and RECIPIENT_USER_ID:
 else:
     st.warning("Telegram Bot token or Recipient User ID not found. Notifications will be disabled.")
 
-# Initialize API Clients
 client_perplexity = None
 if PERPLEXITY_API_KEY:
     client_perplexity = OpenAI(api_key=PERPLEXITY_API_KEY, base_url="https://api.perplexity.ai")
 else:
-    st.warning("Perplexity API Key (PERPLEXITY_API_KEY) not found. Sonar and Deepseek models will be unavailable. Please set the environment variable to use these models.")
+    st.warning("Perplexity API Key (PERPLEXITY_API_KEY) not found. Sonar and Deepseek models will be unavailable.")
 
 client_openai = None
 if OPENAI_API_KEY:
     client_openai = OpenAI()
 else:
-    st.warning("OpenAI API Key (OPENAI_API_KEY) not found. Optima and Oscar models will be unavailable. Please set the environment variable to use these models.")
+    st.warning("OpenAI API Key (OPENAI_API_KEY) not found. Optima and Oscar models will be unavailable.")
 
-client_google_sdk = None # This will hold the genai.Client() instance
+client_google_sdk = None 
 if GOOGLE_API_KEY:
     try:
-        client_google_sdk = genai.Client(api_key=GOOGLE_API_KEY) # Initialize client
+        client_google_sdk = genai.Client(api_key=GOOGLE_API_KEY) 
     except Exception as e:
         st.error(f"Failed to initialize Google Gemini Client: {e}")
 else:
-    st.warning("Google API Key (GOOGLE_API_KEY) not found. Gemini models will be unavailable. Please set the environment variable to use these models.")
+    st.warning("Google API Key (GOOGLE_API_KEY) not found. Gemini models will be unavailable.")
 
 client_anthropic = None
 if ANTHROPIC_API_KEY:
     client_anthropic = Anthropic(api_key=ANTHROPIC_API_KEY)
 else:
-    st.warning("Anthropic API Key (ANTHROPIC_API_KEY) not found. Claude models will be unavailable. Please set the environment variable to use these models.")
+    st.warning("Anthropic API Key (ANTHROPIC_API_KEY) not found. Claude models will be unavailable.")
 
-# Base Generation parameters for Google Gemini
-# These will be used directly in GenerateContentConfig
 base_generation_config_params = {
     "candidate_count": 1,
     "temperature": 0.5,
@@ -82,13 +73,9 @@ base_editor_generation_config_params = {
     "temperature": 0.3, 
 }
 
-
-# --- PROMPT GENERATION ---
 def generate_cv_prompt(individual):
-    """Generates the prompt for CV creation."""
     prompt = f"""###Instruction###
 Create a comprehensive biography of {individual} detailing the personal background, education, career progression, and other significant appointments or achievements. The biography should be structured as follows:
-
 1.  **NAME**: Full name of the individual.
 2.  **GOVERNMENT POSITION**: Current or most recent government position held. (If applicable, otherwise most recent significant professional role).
 3.  **COUNTRY**: The official name of the country they serve/worked in or are primarily associated with.
@@ -101,65 +88,56 @@ Create a comprehensive biography of {individual} detailing the personal backgrou
 10. **AWARDS and DECORATIONS**: List of awards and decorations received.
 11. **LANGUAGES**: Languages spoken.
 12. **REMARKS**: Any additional noteworthy information or personal achievements, including familial connections to other notable figures if relevant.
-
 This format is designed to provide a clear and detailed overview of an individual's professional and personal life, highlighting their contributions and achievements in a structured manner. Use up-to-date information available up to May 2025.
-
 ###Information###
 [INFO]
-
 ###Biography###"""
     return prompt
 
-# --- STREAMLIT UI ---
 st.write("## **CV Generator Pro** :briefcase:")
-
 with st.expander("Click to read documentation", expanded=True):
     st.write("This tool generates draft CVs using various Large Language Models (LLMs).")
     st.write("1.  Enter the name of the individual for whom you want to generate a CV.")
-    st.write("2.  Select up to five **CV generation models (Interns)** from the list. These models are equipped with web search or grounding capabilities to fetch up-to-date information:")
+    st.write("2.  Select up to five **CV generation models (Interns)** from the list:")
     st.markdown("""
-        -   **Sonar**: Perplexity model, good for broad research. Search context size set to 'high'.
-        -   **Deepseek**: Perplexity model, focused on reasoning. Search context size set to 'high'.
-        -   **Gemini**: Google model with web grounding capabilities (`gemini-2.0-flash-001`).
-        -   **Optima**: OpenAI model with web search capabilities (`gpt-4.1`). Web search is enabled via the Responses API. Search context size set to 'high'.
-        -   **Claude**: Anthropic model with web search capabilities (`claude-3-7-sonnet-20250219`).
+        -   **Sonar**: Perplexity model. Search context: high.
+        -   **Deepseek**: Perplexity model. Search context: high.
+        -   **Gemini**: Google model (`gemini-2.0-flash-001`) with web grounding.
+        -   **Optima**: OpenAI model (`gpt-4.1`) with web search (Responses API). Search context: high.
+        -   **Claude**: Anthropic model (`claude-3-7-sonnet-20250219`) with web search.
     """)
-    st.write("3.  If you select more than one generation model, choose one or more **reasoning models (Editors)** to synthesize a reconciled CV and highlight discrepancies:") 
-    st.write("    -   **Oscar** (OpenAI - Advanced reasoning model. *Underlying model: 'o3'. Ensure 'o3' is a valid model ID for your API key.*)") 
-    st.write("    -   **Graham** (Google - Powerful alternative for comparison. *Underlying model: 'gemini-2.5-pro-preview-05-06'.*)") 
-    st.write("4.  Click 'Generate CVs & Synthesize!' to start the process.") 
+    st.write("3.  If you select more than one generation model, choose one or more **reasoning models (Editors)** to synthesize a reconciled CV:") 
+    st.write("    -   **Oscar** (OpenAI 'o3')") 
+    st.write("    -   **Graham** (Google 'gemini-2.5-pro-preview-05-06')") 
+    st.write("4.  Click 'Generate CVs & Synthesize!' to start.") 
     st.write("5.  Review the generated CVs and the synthesized CV(s).")
 
 GENERATION_MODELS_OPTIONS = {
     'Sonar': {'client': client_perplexity, 'model_id': 'sonar-pro', 'type': 'perplexity', 'description': "Perplexity model, good for broad research. Search context: high."},
     'Deepseek': {'client': client_perplexity, 'model_id': 'sonar-reasoning', 'type': 'perplexity', 'description': "Perplexity model, focused on reasoning. Search context: high."},
     'Gemini': {'client': client_google_sdk, 'model_id': 'gemini-2.0-flash-001', 'type': 'google_client_grounding', 'description': "Google model with web grounding capabilities."},
-    'Optima': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch', 'description': "OpenAI model (gpt-4.1) with web search capabilities (via Responses API). Search context: high."}, # Reverted
+    'Optima': {'client': client_openai, 'model_id': 'gpt-4.1', 'type': 'openai_responses_websearch', 'description': "OpenAI model (gpt-4.1) with web search capabilities (via Responses API). Search context: high."},
     'Claude': {'client': client_anthropic, 'model_id': 'claude-3-7-sonnet-20250219', 'type': 'anthropic_websearch', 'description': "Anthropic model with web search capabilities."}
 }
-
 EDITOR_MODELS_OPTIONS = { 
     'Oscar': {'client': client_openai, 'model_id': 'o3', 'type': 'openai_chat'},
     'Graham': {'client': client_google_sdk, 'model_id': 'gemini-2.5-pro-preview-05-06', 'type': 'google_client'} 
 }
 
-# Filter out unavailable models based on API key presence
 available_generation_models = [name for name, details in GENERATION_MODELS_OPTIONS.items() if details['client']]
 available_editor_models = [name for name, details in EDITOR_MODELS_OPTIONS.items() if details['client']] 
 
 if not available_generation_models:
-    st.error("No CV generation models are available. Please check your API key configurations in environment variables.")
+    st.error("No CV generation models are available. Please check API key configurations.")
 if not available_editor_models: 
-    st.error("No Editor models are available. Please check your API key configurations in environment variables.")
+    st.error("No Editor models are available. Please check API key configurations.")
 
-# Displaying model descriptions before multiselect as direct captions are not supported in multiselect options
 st.subheader("Select CV Generation Models (Interns)")
 for model_name in GENERATION_MODELS_OPTIONS:
     if model_name in available_generation_models:
         st.caption(f"**{model_name}**: {GENERATION_MODELS_OPTIONS[model_name]['description']}")
     else:
         st.caption(f"**{model_name}**: *Unavailable (API key missing)*")
-
 
 Intern_Select = st.multiselect(
     "Which **CV generation models** would you like to deploy? (Select up to 5)",
@@ -189,9 +167,7 @@ if len(Intern_Select) > 1 and available_editor_models:
 elif len(Intern_Select) <=1 and Intern_Select : 
      st.info("Select more than one CV generation model to enable synthesis by an editor.") 
 
-
 input_text = st.text_input("Enter the full name of the individual for the CV (e.g., 'Dr. Jane Doe, CEO of Tech Innovations Inc.')")
-
 Customised_Prompt = generate_cv_prompt(input_text) 
 
 if st.button("Generate CVs & Synthesize! :rocket:"): 
@@ -300,24 +276,22 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                         output_text = response.output_text
                         
                         openai_sources_list = []
-                        raw_response_for_debug_str = "" # For storing debug string of the whole response
+                        raw_response_for_debug_str = "" 
 
                         try:
-                            # Attempt to serialize the whole response for debugging
                             if hasattr(response, 'model_dump_json'):
                                 raw_response_for_debug_str = response.model_dump_json(indent=2)
                             else:
                                 raw_response_for_debug_str = str(response)
                         except Exception:
-                                raw_response_for_debug_str = str(response) # Fallback to string if JSON dump fails
-
+                                raw_response_for_debug_str = str(response) 
 
                         if hasattr(response, 'output') and response.output:
-                            for item in response.output:
+                            for item in response.output: # item is an object from the list response.output
+                                # Check if this item is the message containing the text and annotations
                                 if hasattr(item, 'type') and item.type == "message" and \
-                                   hasattr(item, 'message') and item.message and \
-                                   hasattr(item.message, 'content') and item.message.content:
-                                    for content_item in item.message.content:
+                                   hasattr(item, 'content') and item.content: # Access content directly from item
+                                    for content_item in item.content: # content_item is an object like ResponseOutputText
                                         if hasattr(content_item, 'type') and content_item.type == "output_text" and \
                                            hasattr(content_item, 'annotations') and content_item.annotations:
                                             for annotation in content_item.annotations:
@@ -330,11 +304,11 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                             sources_text = "Sources (OpenAI Optima):\n" + "\n".join(list(set(openai_sources_list))) 
                         elif any(hasattr(item, 'type') and item.type == "web_search_call" for item in (response.output or [])):
                             sources_text = "Sources (OpenAI Optima): Web search tool was utilized. No specific citable annotations found in the response." 
-                            if raw_response_for_debug_str: # Use the full response string for debug
+                            if raw_response_for_debug_str: 
                                 sources_text += f"\n\n*Debug: OpenAI `response` object structure:*\n```json\n{raw_response_for_debug_str}\n```"
                         else:
                             sources_text = "Sources (OpenAI Optima): Web search was enabled, but the tool does not appear to have been used or no citable annotations were returned." 
-                            if raw_response_for_debug_str: # Use the full response string for debug
+                            if raw_response_for_debug_str: 
                                  sources_text += f"\n\n*Debug: OpenAI `response` object structure:*\n```json\n{raw_response_for_debug_str}\n```"
 
 
