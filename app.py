@@ -289,7 +289,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
 
                     elif model_details['type'] == 'openai_responses_websearch':
                         response = model_details['client'].responses.create(
-                            model=model_details['model_id'], # Now 'gpt-4.1'
+                            model=model_details['model_id'], 
                             input=Customised_Prompt,
                             tools=[{
                                 "type": "web_search_preview",
@@ -300,20 +300,19 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                         output_text = response.output_text
                         
                         openai_sources_list = []
-                        raw_output_for_debug_str = "" 
+                        raw_response_for_debug_str = "" # For storing debug string of the whole response
+
+                        try:
+                            # Attempt to serialize the whole response for debugging
+                            if hasattr(response, 'model_dump_json'):
+                                raw_response_for_debug_str = response.model_dump_json(indent=2)
+                            else:
+                                raw_response_for_debug_str = str(response)
+                        except Exception:
+                                raw_response_for_debug_str = str(response) # Fallback to string if JSON dump fails
+
 
                         if hasattr(response, 'output') and response.output:
-                            try:
-                                serializable_output = []
-                                for item_obj in response.output:
-                                    if hasattr(item_obj, 'model_dump'):
-                                        serializable_output.append(item_obj.model_dump())
-                                    else: 
-                                        serializable_output.append(str(item_obj))
-                                raw_output_for_debug_str = json.dumps(serializable_output, indent=2)
-                            except Exception:
-                                raw_output_for_debug_str = str(response.output) 
-
                             for item in response.output:
                                 if hasattr(item, 'type') and item.type == "message" and \
                                    hasattr(item, 'message') and item.message and \
@@ -331,12 +330,12 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                             sources_text = "Sources (OpenAI Optima):\n" + "\n".join(list(set(openai_sources_list))) 
                         elif any(hasattr(item, 'type') and item.type == "web_search_call" for item in (response.output or [])):
                             sources_text = "Sources (OpenAI Optima): Web search tool was utilized. No specific citable annotations found in the response." 
-                            if raw_output_for_debug_str:
-                                sources_text += f"\n\n*Debug: OpenAI `response.output` structure:*\n```json\n{raw_output_for_debug_str}\n```"
+                            if raw_response_for_debug_str: # Use the full response string for debug
+                                sources_text += f"\n\n*Debug: OpenAI `response` object structure:*\n```json\n{raw_response_for_debug_str}\n```"
                         else:
                             sources_text = "Sources (OpenAI Optima): Web search was enabled, but the tool does not appear to have been used or no citable annotations were returned." 
-                            if raw_output_for_debug_str:
-                                 sources_text += f"\n\n*Debug: OpenAI `response.output` structure:*\n```json\n{raw_output_for_debug_str}\n```"
+                            if raw_response_for_debug_str: # Use the full response string for debug
+                                 sources_text += f"\n\n*Debug: OpenAI `response` object structure:*\n```json\n{raw_response_for_debug_str}\n```"
 
 
                     elif model_details['type'] == 'anthropic_websearch':
