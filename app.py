@@ -3,7 +3,8 @@ import os
 import time
 import telebot
 import json 
-from datetime import datetime # Added for dynamic date
+from datetime import datetime 
+import pytz # Added for timezone handling
 from google import genai 
 from openai import OpenAI
 from anthropic import Anthropic
@@ -13,20 +14,45 @@ from st_copy_to_clipboard import st_copy_to_clipboard
 # --- PAGE CONFIGURATION (MUST BE THE FIRST STREAMLIT COMMAND) ---
 st.set_page_config(page_title="CV Generator Pro", page_icon=":briefcase:")
 
-# --- CONFIGURATION ---
-PERPLEXITY_API_KEY = os.environ.get('PERPLEXITY_API_KEY')
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
-ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
+# --- CONFIGURATION & API KEY STATUS ---
+st.sidebar.header("API Key Status")
+api_keys_configured = True
 
-initial_api_keys_found = any([PERPLEXITY_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY])
-if not initial_api_keys_found:
-    st.info(
-        "Welcome to CV Generator Pro! To get started, please ensure you have set up the necessary API keys "
-        "as environment variables (e.g., OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY, PERPLEXITY_API_KEY). "
-        "All models are currently unavailable until their respective keys are configured."
+PERPLEXITY_API_KEY = os.environ.get('PERPLEXITY_API_KEY')
+if PERPLEXITY_API_KEY:
+    st.sidebar.success("Perplexity API Key: Found")
+else:
+    st.sidebar.warning("Perplexity API Key (PERPLEXITY_API_KEY): **Missing** - Sonar & Deepseek unavailable.")
+    api_keys_configured = False
+
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+if OPENAI_API_KEY:
+    st.sidebar.success("OpenAI API Key: Found")
+else:
+    st.sidebar.warning("OpenAI API Key (OPENAI_API_KEY): **Missing** - Optima & Oscar unavailable.")
+    api_keys_configured = False
+
+GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
+if GOOGLE_API_KEY:
+    st.sidebar.success("Google API Key: Found")
+else:
+    st.sidebar.warning("Google API Key (GOOGLE_API_KEY): **Missing** - Gemini & Graham unavailable.")
+    api_keys_configured = False
+
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
+if ANTHROPIC_API_KEY:
+    st.sidebar.success("Anthropic API Key: Found")
+else:
+    st.sidebar.warning("Anthropic API Key (ANTHROPIC_API_KEY): **Missing** - Claude unavailable.")
+    api_keys_configured = False
+
+if not api_keys_configured and not initial_api_keys_found: # Show general welcome only if it's the very first run with no keys
+     st.info(
+        "Welcome to CV Generator Pro! Please set up API keys (see status in sidebar) to enable models."
     )
 
+
+# Set up Telegram Bot
 RECIPIENT_USER_ID = os.environ.get('RECIPIENT_USER_ID')
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 bot = None
@@ -36,19 +62,17 @@ if BOT_TOKEN and RECIPIENT_USER_ID:
     except Exception as e:
         st.error(f"Failed to initialize Telegram Bot: {e}")
 else:
-    st.warning("Telegram Bot token or Recipient User ID not found. Notifications will be disabled.")
+    if GOOGLE_API_KEY or OPENAI_API_KEY or PERPLEXITY_API_KEY or ANTHROPIC_API_KEY : # Only warn if some keys are present
+        st.sidebar.warning("Telegram Bot token or Recipient User ID not found. Notifications will be disabled.")
 
+# Initialize API Clients
 client_perplexity = None
 if PERPLEXITY_API_KEY:
     client_perplexity = OpenAI(api_key=PERPLEXITY_API_KEY, base_url="https://api.perplexity.ai")
-else:
-    st.warning("Perplexity API Key (PERPLEXITY_API_KEY) not found. Sonar and Deepseek models will be unavailable.")
 
 client_openai = None
 if OPENAI_API_KEY:
     client_openai = OpenAI()
-else:
-    st.warning("OpenAI API Key (OPENAI_API_KEY) not found. Optima and Oscar models will be unavailable.")
 
 client_google_sdk = None 
 if GOOGLE_API_KEY:
@@ -56,14 +80,10 @@ if GOOGLE_API_KEY:
         client_google_sdk = genai.Client(api_key=GOOGLE_API_KEY) 
     except Exception as e:
         st.error(f"Failed to initialize Google Gemini Client: {e}")
-else:
-    st.warning("Google API Key (GOOGLE_API_KEY) not found. Gemini models will be unavailable.")
 
 client_anthropic = None
 if ANTHROPIC_API_KEY:
     client_anthropic = Anthropic(api_key=ANTHROPIC_API_KEY)
-else:
-    st.warning("Anthropic API Key (ANTHROPIC_API_KEY) not found. Claude models will be unavailable.")
 
 base_generation_config_params = {
     "candidate_count": 1,
@@ -74,11 +94,16 @@ base_editor_generation_config_params = {
     "temperature": 0.3, 
 }
 
+def get_current_sg_date_str():
+    """Gets the current date in Singapore time, formatted."""
+    utc_now = datetime.utcnow().replace(tzinfo=pytz.utc)
+    sg_timezone = pytz.timezone('Asia/Singapore')
+    sg_now = utc_now.astimezone(sg_timezone)
+    return sg_now.strftime("%B %d, %Y")
+
 def generate_cv_prompt(individual):
-    """Generates the prompt for CV creation with the current date."""
-    current_date = datetime.now()
-    # Format: Month YYYY (e.g., May 2025)
-    current_month_year = current_date.strftime("%B %Y") 
+    """Generates the prompt for CV creation with the current date in Singapore time."""
+    current_sg_date_str = get_current_sg_date_str()
     
     prompt = f"""###Instruction###
 Create a comprehensive biography of {individual} detailing the personal background, education, career progression, and other significant appointments or achievements. The biography should be structured as follows:
@@ -87,7 +112,7 @@ Create a comprehensive biography of {individual} detailing the personal backgrou
 2.  **GOVERNMENT POSITION**: Current or most recent government position held. (If applicable, otherwise most recent significant professional role).
 3.  **COUNTRY**: The official name of the country they serve/worked in or are primarily associated with.
 4.  **BORN**: Date of birth.
-5.  **AGE**: Current age. Calculate the difference between the current date ({current_month_year}) and the date of birth.
+5.  **AGE**: Current age. Calculate the difference between the current date ({current_sg_date_str}) and the date of birth.
 6.  **MARITAL STATUS**: Information on marital status, including spouse and children if applicable. String format.
 7.  **EDUCATION**: Chronological list of educational achievements, including institutions attended and degrees or qualifications obtained. Give the breakdown in the form of PERIOD, INSTITUTION, DEGREE.
 8.  **CAREER**: Detailed account of the individual's career, including positions held, dates of service, and any promotions or notable responsibilities. This section can be continued as needed (e.g., "Career (cont’d)"). Do not miss the details of all promotions and double hatting positions. Give the breakdown in the form of YEAR and POSITION.
@@ -96,7 +121,7 @@ Create a comprehensive biography of {individual} detailing the personal backgrou
 11. **LANGUAGES**: Languages spoken.
 12. **REMARKS**: Any additional noteworthy information or personal achievements, including familial connections to other notable figures if relevant.
 
-This format is designed to provide a clear and detailed overview of an individual's professional and personal life, highlighting their contributions and achievements in a structured manner. Use up-to-date information available up to {current_month_year}.
+This format is designed to provide a clear and detailed overview of an individual's professional and personal life, highlighting their contributions and achievements in a structured manner. Use up-to-date information available up to {current_sg_date_str}.
 
 ###Information###
 [INFO]
@@ -104,8 +129,9 @@ This format is designed to provide a clear and detailed overview of an individua
 ###Biography###"""
     return prompt
 
+# --- STREAMLIT UI ---
 st.write("## **CV Generator Pro** :briefcase:")
-with st.expander("Click to read documentation", expanded=False):
+with st.expander("Click to read documentation", expanded=False): # Default to collapsed
     st.write("This tool generates draft CVs using various Large Language Models (LLMs).")
     st.write("1.  Enter the name of the individual for whom you want to generate a CV.")
     st.write("2.  Select up to five **CV generation models (Interns)** from the list:")
@@ -138,9 +164,9 @@ available_generation_models = [name for name, details in GENERATION_MODELS_OPTIO
 available_editor_models = [name for name, details in EDITOR_MODELS_OPTIONS.items() if details['client']] 
 
 if not available_generation_models:
-    st.error("No CV generation models are available. Please check API key configurations.")
+    st.error("No CV generation models are available. Please check API key configurations in the sidebar.")
 if not available_editor_models: 
-    st.error("No Editor models are available. Please check API key configurations.")
+    st.error("No Editor models are available. Please check API key configurations in the sidebar.")
 
 st.subheader("Select CV Generation Models (Interns)")
 for model_name in GENERATION_MODELS_OPTIONS:
@@ -158,53 +184,63 @@ Intern_Select = st.multiselect(
 )
 
 Editor_Select = None 
-if len(Intern_Select) > 1 and available_editor_models: 
-    st.subheader("Select Reasoning Models for Synthesis (Editors)") 
-    default_editors = [] 
-    if 'Graham' in available_editor_models: 
-        default_editors.append('Graham')
-    if 'Oscar' in available_editor_models: 
-         default_editors.append('Oscar')
-    
-    if not default_editors and available_editor_models: 
-        default_editors.append(available_editor_models[0])
+if len(Intern_Select) > 1:
+    if available_editor_models:
+        st.subheader("Select Reasoning Models for Synthesis (Editors)") 
+        default_editors = [] 
+        if 'Graham' in available_editor_models: 
+            default_editors.append('Graham')
+        if 'Oscar' in available_editor_models: 
+             default_editors.append('Oscar')
+        
+        if not default_editors and available_editor_models: 
+            default_editors.append(available_editor_models[0])
 
-    Editor_Select = st.multiselect( 
-        "Which **reasoning models (Editors)** would you like to deploy for synthesis? (Select one or more if available)", 
-        options=available_editor_models, 
-        default=default_editors, 
-        label_visibility="collapsed"
-    )
-elif len(Intern_Select) <=1 and Intern_Select : 
-     st.info("Select more than one CV generation model to enable synthesis by an editor.") 
+        Editor_Select = st.multiselect( 
+            "Which **reasoning models (Editors)** would you like to deploy for synthesis? (Select one or more if available)", 
+            options=available_editor_models, 
+            default=default_editors, 
+            label_visibility="collapsed"
+        )
+    else:
+        st.warning("No Editor models available. Synthesis will be skipped if multiple interns are selected.")
+elif len(Intern_Select) == 1 and Intern_Select : 
+     st.info("Only one CV generation model selected. Synthesis by an editor will be skipped.") 
+
 
 input_text = st.text_input("Enter the full name of the individual for the CV (e.g., 'Dr. Jane Doe, CEO of Tech Innovations Inc.')")
-# Customised_Prompt is now generated when the button is clicked, to get the latest date
-# Customised_Prompt = generate_cv_prompt(input_text) 
 
-if st.button("Generate CVs & Synthesize! :rocket:"): 
-    if not input_text.strip():
+# Determine if the button should be disabled
+disable_button = not input_text.strip() or \
+                 not Intern_Select or \
+                 (len(Intern_Select) > 1 and not Editor_Select and available_editor_models) # Disable if >1 intern and no editor selected AND editors are available
+
+if st.button("Generate CVs & Synthesize! :rocket:", disabled=disable_button): 
+    if not input_text.strip(): # This check is now redundant due to disable_button but kept for safety
         st.error("Please enter the name of the individual.")
-    elif not Intern_Select:
+    elif not Intern_Select: # Also redundant
         st.error("Please select at least one CV generation model.")
     elif len(Intern_Select) > 1 and not Editor_Select: 
         st.error("Please select at least one editor model when synthesizing multiple CVs.") 
     else:
         key_phrase = input_text
-        # Generate the prompt here to get the current date at the time of execution
-        Customised_Prompt = generate_cv_prompt(input_text)
+        Customised_Prompt = generate_cv_prompt(input_text) 
         st.divider()
         
         total_steps = len(Intern_Select) + (len(Editor_Select) if len(Intern_Select) > 1 and Editor_Select else 0) 
         progress_bar = None
         if total_steps > 0:
             progress_bar = st.progress(0)
+            st.caption(f"Estimated steps: {total_steps}")
         current_step = 0
 
         combined_output_for_copying = ""
         generated_cv_data = {}
+        
+        st.header("Draft CVs from Interns") # Clearer section header
 
         for intern_name in Intern_Select:
+            st.divider() # Divider before each intern's output
             model_details = GENERATION_MODELS_OPTIONS[intern_name]
             if not model_details['client']:
                 st.warning(f"{intern_name} is unavailable (client not configured). Skipping.")
@@ -219,7 +255,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
             start_time = time.time()
 
             try:
-                with st.spinner(f"Asking {intern_name} to draft the CV... This may take a moment."): 
+                with st.spinner(f"Asking {intern_name} to draft the CV... API calls can sometimes be slow."): 
                     if model_details['type'] == 'perplexity':
                         response = model_details['client'].chat.completions.create(
                             model=model_details['model_id'],
@@ -242,6 +278,8 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                                     sources_list.append(f"- [{c_url}]({c_url})") 
                             if sources_list:
                                 sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
+                        else:
+                            sources_text = st.caption("No citable sources were provided by this model for this output.")
 
 
                     elif model_details['type'] == 'google_client_grounding':
@@ -269,6 +307,9 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                                 )
                             if sources_list:
                                 sources_text = "Grounding Sources:\n" + "\n".join(list(set(sources_list)))
+                        else:
+                            sources_text = st.caption("No citable grounding sources were provided by this model for this output.")
+
 
                     elif model_details['type'] == 'openai_responses_websearch':
                         response = model_details['client'].responses.create(
@@ -313,7 +354,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                             if raw_response_for_debug_str: 
                                 sources_text += f"\n\n*Debug: OpenAI `response` object structure:*\n```json\n{raw_response_for_debug_str}\n```"
                         else:
-                            sources_text = "Sources (OpenAI Optima): Web search was enabled, but the tool does not appear to have been used or no citable annotations were returned." 
+                            sources_text = st.caption("Sources (OpenAI Optima): Web search was enabled, but the tool does not appear to have been used or no citable annotations were returned.")
                             if raw_response_for_debug_str: 
                                  sources_text += f"\n\n*Debug: OpenAI `response` object structure:*\n```json\n{raw_response_for_debug_str}\n```"
 
@@ -358,22 +399,28 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
 
                         if sources_list:
                            sources_text = "Cited Sources:\n" + "\n".join(list(set(sources_list)))
+                        else:
+                            sources_text = st.caption("No citable sources were provided by this model for this output.")
+
 
                     end_time = time.time()
                     
-                    st.markdown(f"### Draft CV from {intern_name}") 
+                    # st.markdown(f"### Draft CV from {intern_name}") # Moved subheader up
                     with st.expander(f"View/Copy CV from **{intern_name}** for **{key_phrase}**", expanded=True):
                         st.markdown(output_text)
                         st.markdown("---")
-                        st.markdown(sources_text) 
+                        if isinstance(sources_text, str): # Check if sources_text is a string before markdown
+                            st.markdown(sources_text) 
+                        else: # If it's a Streamlit caption object, just display it
+                            sources_text # This will render the st.caption object
                         st.markdown("---")
                         st.write(f"*Time to generate: {round(end_time - start_time, 2)} seconds*")
                         st.write("*Click* :clipboard: *to copy this CV and its sources to clipboard*")
-                        st_copy_to_clipboard(f"CV by {intern_name} for {key_phrase}:\n\n{output_text}\n\n{sources_text}")
+                        st_copy_to_clipboard(f"CV by {intern_name} for {key_phrase}:\n\n{output_text}\n\n{sources_text if isinstance(sources_text, str) else 'No sources provided.'}")
 
-                    cv_plus_sources = f"<answer_{intern_name}>\n(CV from **{intern_name}**)\n\n{output_text}\n\n{sources_text}\n</answer_{intern_name}>\n\n"
+                    cv_plus_sources = f"<answer_{intern_name}>\n(CV from **{intern_name}**)\n\n{output_text}\n\n{sources_text if isinstance(sources_text, str) else 'No sources provided.'}\n</answer_{intern_name}>\n\n"
                     combined_output_for_copying += cv_plus_sources
-                    generated_cv_data[intern_name] = {'text': output_text, 'sources': sources_text}
+                    generated_cv_data[intern_name] = {'text': output_text, 'sources': sources_text if isinstance(sources_text, str) else "No sources provided."}
 
                     if bot:
                         try:
@@ -442,6 +489,8 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
         if len(successfully_generated_cvs) > 1 and Editor_Select: 
             st.markdown("---") 
             st.header("Synthesized CV(s)") 
+            current_sg_date_str_for_editor = get_current_sg_date_str() 
+
             for editor_name_selected in Editor_Select: 
                 st.subheader(f"Synthesized by {editor_name_selected}") 
                 editor_details = EDITOR_MODELS_OPTIONS[editor_name_selected] 
@@ -454,7 +503,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                     "2.  **GOVERNMENT POSITION**: Current or most recent government position held. (If applicable, otherwise most recent significant professional role).\n"
                     "3.  **COUNTRY**: The official name of the country they serve/worked in or are primarily associated with.\n"
                     "4.  **BORN**: Date of birth.\n"
-                    "5.  **AGE**: Current age. (Calculated based on May 2025 and date of birth).\n"
+                    f"5.  **AGE**: Current age. (Calculated based on {current_sg_date_str_for_editor} and date of birth).\n" 
                     "6.  **MARITAL STATUS**: Information on marital status, including spouse and children if applicable.\n"
                     "7.  **EDUCATION**: Chronological list of educational achievements (PERIOD, INSTITUTION, DEGREE).\n"
                     "8.  **CAREER**: Detailed account of the individual's career (YEAR and POSITION).\n"
