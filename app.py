@@ -199,7 +199,7 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                     progress_bar.progress(current_step / total_steps)
                 continue
 
-            st.subheader(f"Generating CV with: {intern_name}")
+            st.subheader(f"Generating CV with {intern_name}") 
             output_text = "Error: No output generated."
             sources_text = "Sources: Not applicable or not provided by the model for this output." 
             start_time = time.time()
@@ -223,19 +223,13 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                         
                         if processed_citations:
                             sources_list = []
-                            for c in processed_citations:
-                                if isinstance(c, dict):
-                                    title = c.get('title', 'N/A')
-                                    url = c.get('url', '#')
-                                    if url != '#': 
-                                     sources_list.append(f"- [{title}]({url})")
-                                elif hasattr(c, 'title') and hasattr(c, 'url') and c.url: 
-                                    sources_list.append(f"- [{c.title}]({c.url})")
-                                else: 
-                                    if isinstance(c, str) and c.strip():
-                                        sources_list.append(f"- [{c}]({c})") 
+                            for i, c_url in enumerate(processed_citations): # Iterate with index for numbering
+                                if isinstance(c_url, str) and c_url.strip():
+                                    # Numbered list of URLs
+                                    sources_list.append(f"{i+1}. [{c_url}]({c_url})")
                             if sources_list:
-                                sources_text = "Sources:\n" + "\n".join(list(set(sources_list)))
+                                sources_text = "Sources (Note: Numbers below may not directly map to inline citations like [1], [2] in the text above for this model):\n" + "\n".join(list(set(sources_list)))
+
 
                     elif model_details['type'] == 'google_client_grounding':
                         google_search_tool_instance = Tool(google_search=GoogleSearch())
@@ -287,11 +281,10 @@ if st.button("Generate CVs & Synthesize! :rocket:"):
                                 raw_response_for_debug_str = str(response) 
 
                         if hasattr(response, 'output') and response.output:
-                            for item in response.output: # item is an object from the list response.output
-                                # Check if this item is the message containing the text and annotations
+                            for item in response.output: 
                                 if hasattr(item, 'type') and item.type == "message" and \
-                                   hasattr(item, 'content') and item.content: # Access content directly from item
-                                    for content_item in item.content: # content_item is an object like ResponseOutputText
+                                   hasattr(item, 'content') and item.content: 
+                                    for content_item in item.content: 
                                         if hasattr(content_item, 'type') and content_item.type == "output_text" and \
                                            hasattr(content_item, 'annotations') and content_item.annotations:
                                             for annotation in content_item.annotations:
